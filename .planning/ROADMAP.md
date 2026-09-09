@@ -24,6 +24,11 @@ nABrush sẽ được xây theo sáu lát dọc, mỗi lát hoàn thiện một 
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: OVLY-01, OVLY-02, OVLY-03, OVLY-04
+**Plans:** 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — Tauri walking skeleton with tray and primary-display overlay tracer
+- [ ] 01-02-PLAN.md — Native mode state, click-through adapters, and configurable shortcuts
+- [ ] 01-03-PLAN.md — Error recovery, smoke tests, and cross-platform support matrix
 **Success Criteria** (what must be TRUE):
   1. User can launch nABrush and keep it available from the macOS menu bar or Windows system tray without a normal application window taking over the presentation.
   2. User can configure and invoke a global shortcut while another app is focused to toggle the overlay on or off.
