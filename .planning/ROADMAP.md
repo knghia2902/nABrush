@@ -24,18 +24,21 @@ nABrush sẽ được xây theo sáu lát dọc, mỗi lát hoàn thiện một 
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: OVLY-01, OVLY-02, OVLY-03, OVLY-04
-**Plans:** 3 plans
+**Plans:** 7 plans
 Plans:
-- [ ] 01-01-PLAN.md — Tauri walking skeleton with tray and primary-display overlay tracer
-- [ ] 01-02-PLAN.md — Native mode state, click-through adapters, and configurable shortcuts
-- [ ] 01-03-PLAN.md — Error recovery, smoke tests, and cross-platform support matrix
+- [ ] 01-01-PLAN.md — Reviewed frontend scaffold and pinned Rust toolchain
+- [ ] 01-02-PLAN.md — Tray-to-primary-overlay activation tracer and lifecycle fixture
+- [ ] 01-03-PLAN.md — Explicit mode contract and retained-scene emergency fixture
+- [ ] 01-04-PLAN.md — Settings rebinding UI, transactional shortcuts, and launch-at-login opt-in
+- [ ] 01-05-PLAN.md — Native hit-testing adapters and mode feedback
+- [ ] 01-06-PLAN.md — Recoverable error states and non-modal retry UI
+- [ ] 01-07-PLAN.md — Cross-platform smoke tests, CI matrix, and support evidence
 **Success Criteria** (what must be TRUE):
   1. User can launch nABrush and keep it available from the macOS menu bar or Windows system tray without a normal application window taking over the presentation.
   2. User can configure and invoke a global shortcut while another app is focused to toggle the overlay on or off.
   3. User can switch all overlay surfaces between drawing mode and click-through mode, and the underlying app receives pointer input in click-through mode while annotations remain visible.
   4. User can trigger emergency hide to remove every visible overlay and later restore the same annotation scene.
 **Research flags/spikes**: Validate macOS transparent borderless windows, `macos-private-api`, Spaces/Stage Manager/full-screen auxiliary behavior, Windows layered-window z-order/hit testing, shortcut conflicts, and the minimum supported OS matrix. Keep native hit testing and renderer state in one explicit state transition.
-**Plans**: TBD
 **UI hint**: yes
 
 ### Phase 2: Display Topology & Platform Parity

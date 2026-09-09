@@ -562,32 +562,19 @@ Minimum OS versions and the final full-screen support classification remain disc
 | A6 | The project can standardize its minimum macOS/Windows versions after the real-device spike. | Validation Matrix | CI matrix and native API availability may need to be revised. |
 | A7 | The package-legitimacy gate's SUS result is caused by package recency, not malicious behavior; each flagged package still needs human verification before installation. | Standard Stack / Audit | Planner may need to pin an older verified release or select a different test runner. |
 
-## Open Questions
+## Resolved Open Questions
 
-1. **What minimum macOS and Windows versions will Phase 1 support?**
-   - What we know: platform scope is macOS and Windows, but the context leaves minimum OS versions to discretion. [VERIFIED: .planning/phases/01-native-overlay-activation/01-CONTEXT.md:42-46]
-   - What's unclear: exact AppKit collection behavior, Windows WebView2 availability, and native API support at the lower bound.
-   - Recommendation: run the real-device matrix first, then lock the minimum versions in the support matrix and CI.
+The following decisions close the questions raised during discovery. Device observations remain validation evidence for the chosen contract; they are no longer open design choices.
 
-2. **Will direct macOS distribution be accepted for the first public build?**
-   - What we know: Tauri documents that its macOS private API transparency option prevents App Store acceptance. [CITED: https://v2.tauri.app/reference/config/]
-   - What's unclear: whether the product requires App Store submission in addition to direct downloads.
-   - Recommendation: use signed/notarized direct distribution for the overlay spike; record App Store packaging as a separate decision before release work.
+1. **Phase 1 minimum OS versions:** support macOS 13 Ventura or newer and Windows 10 22H2 or newer with Evergreen WebView2. [ASSUMED: CONTEXT.md grants the planner discretion over minimum versions; these baselines provide the AppKit Space policy, current Tauri 2 support, Win32 layered-window behavior, and maintained WebView2 runtime needed by this phase.] The CI matrix and `docs/support-matrix.md` use these exact lower bounds; older versions are outside the Phase 1 support contract.
 
-3. **Can the plugin register bare `Escape` globally on both OSes?**
-   - What we know: the plugin documents global registration and conflict behavior, while macOS raw key event taps require Accessibility permission. [CITED: https://v2.tauri.app/plugin/global-shortcut/] [CITED: https://developer.apple.com/documentation/coregraphics/cgevent/tapcreate(tap:place:options:eventsofinterest:callback:userinfo:)]
-   - What's unclear: bare Esc acceptance and reserved-key behavior on the exact OS versions.
-   - Recommendation: make this a blocking device test for the native tracer; do not silently substitute a webview key listener.
+2. **Initial macOS distribution:** use a signed and notarized direct-download DMG for the Phase 1 harness and the first public distribution path. [VERIFIED: Tauri's documented transparent macOS webview path uses `macOSPrivateApi`, which blocks Mac App Store acceptance: https://v2.tauri.app/reference/config/ and https://v2.tauri.app/distribute/sign/macos/] App Store packaging is excluded while that setting is enabled and is not a Phase 1 acceptance target.
 
-4. **Should shortcut bindings persist across restart in Phase 1?**
-   - What we know: D-03 and D-07 require configurable bindings, but the context does not explicitly state persistence. [VERIFIED: .planning/phases/01-native-overlay-activation/01-CONTEXT.md:18-25]
-   - What's unclear: whether persistence is expected before the settings/store phase.
-   - Recommendation: keep the registry schema ready for the local store, but do not add a migration or database; make persistence a planner decision if the settings surface lands in this phase. [ASSUMED]
+3. **Bare `Escape` registration:** bare `Escape` is a required global emergency binding on both supported OS baselines and is registered through the global-shortcut/native registration path. [VERIFIED: D-10 requires an always-available Esc action.] If a target rejects the registration or reserves the key, the app reports the D-15 capability error, keeps the configured alternate emergency binding available, and records the platform result; it never silently substitutes a webview-only key listener or an unapproved event tap. The device check is evidence for this fixed contract, not an unresolved design question. [ASSUMED: exact reserved-key behavior requires the physical matrix.]
 
-5. **Is a separate settings window in Phase 1 or only the tray/overlay tracer?**
-   - What we know: closing settings/toolbar must hide UI while the process stays alive. [VERIFIED: .planning/phases/01-native-overlay-activation/01-CONTEXT.md:20]
-   - What's unclear: the roadmap success criteria do not require a full settings UI.
-   - Recommendation: keep Phase 1 UI to tray plus a minimal binding/error surface; expose a typed settings command only where needed to prove close/hide lifecycle. [ASSUMED]
+4. **Shortcut persistence:** bindings are session-scoped in Phase 1. A successful rebind is immediately active and remains active while the process runs, including after settings/toolbar close; a restart loads the documented defaults. [VERIFIED: D-03 and D-07 require configurable bindings but do not require restart persistence.] No store, migration, account, or database is part of this phase.
+
+5. **Settings surface:** Phase 1 includes one small settings window opened from the tray/menu bar. It exposes visibility, click-through, alternate emergency shortcut rebinding, and launch-at-login opt-in; its close request hides the window while the tray process remains alive. [ASSUMED: this is the smallest concrete surface that makes D-03, D-05, and D-07 user reachable and satisfies D-04.] It does not add drawing-tool, capture, persistence, or billing settings.
 
 ## Environment Availability
 
