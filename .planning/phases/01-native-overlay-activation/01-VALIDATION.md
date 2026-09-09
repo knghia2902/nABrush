@@ -17,14 +17,15 @@ created: "2026-09-09"
 |----------|-------|
 | **Framework** | Vitest 5.0.0 for TypeScript; Rust `cargo test`; WebdriverIO Tauri service for desktop smoke tests |
 | **Config file** | `vitest.config.ts`, `wdio.conf.ts`, and `src-tauri/Cargo.toml` created by the phase plans |
-| **Quick run command** | `pnpm exec vitest run --passWithNoTests && cargo test --manifest-path src-tauri/Cargo.toml` |
-| **Full suite command** | `pnpm exec vitest run && cargo test --manifest-path src-tauri/Cargo.toml && pnpm exec wdio run wdio.conf.ts` on macOS and Windows runners |
+| **Quick run command** | `pnpm exec vitest run --passWithNoTests && cargo test --manifest-path src-tauri/Cargo.toml` plus `pnpm exec wdio run wdio.conf.ts --suite short-lifecycle` when the built app is available |
+| **Full suite command** | `pnpm exec vitest run && cargo test --manifest-path src-tauri/Cargo.toml && pnpm exec wdio run wdio.conf.ts --suite phase1-matrix` at the Phase 1 gate on macOS and Windows runners |
 | **Estimated runtime** | ~30 seconds for unit/native checks; ~3 minutes for a built-app smoke run |
 
 ## Sampling Rate
 
 - **After every task commit:** Run `pnpm exec vitest run --passWithNoTests && cargo test --manifest-path src-tauri/Cargo.toml` when the relevant toolchain is available.
-- **After every plan wave:** Run `pnpm exec vitest run && cargo test --manifest-path src-tauri/Cargo.toml`; run the built-app smoke test on the target runner.
+- **After every plan wave:** Run `pnpm exec vitest run && cargo test --manifest-path src-tauri/Cargo.toml`; run the short built-app smoke test with `pnpm exec wdio run wdio.conf.ts --suite short-lifecycle` on the target runner.
+- **At the Phase 1 gate:** Run the full `phase1-matrix` WebDriver suite only after the short suite and unit/native checks are green; its expected runtime is approximately three minutes.
 - **Before `$gsd-verify-work`:** The full suite must be green and the macOS/Windows device matrix must be recorded.
 - **Max feedback latency:** 30 seconds for unit/native checks; 180 seconds for the desktop smoke suite.
 
@@ -45,12 +46,15 @@ created: "2026-09-09"
 | 01-06-01 | 06 | 6 | OVLY-04 | T-01-09, T-01-10 | Initialization failure fails closed and preserves scene | Rust unit | `cargo test --manifest-path src-tauri/Cargo.toml errors` | ⬜ W0 | ⬜ pending |
 | 01-06-02 | 06 | 6 | OVLY-04 | T-01-10 | Recovery actions are typed and contextual | TypeScript unit | `pnpm exec vitest run src/components/error-badge.test.tsx` | ⬜ W0 | ⬜ pending |
 | 01-07-01 | 07 | 7 | OVLY-01, OVLY-02, OVLY-03, OVLY-04 | T-01-12 | Only reviewed WebDriver packages enter the toolchain | checkpoint + registry check | `test -f .planning/phases/01-native-overlay-activation/01-RESEARCH.md` | ✅ | ⬜ pending |
-| 01-07-02 | 07 | 7 | OVLY-01, OVLY-02, OVLY-03, OVLY-04 | T-01-12 | Smoke runner launches the built app with explicit platform target | WebDriver | `pnpm exec wdio run wdio.conf.ts` | ⬜ W0 | ⬜ pending |
+| 01-07-02 | 07 | 7 | OVLY-01, OVLY-02, OVLY-03, OVLY-04 | T-01-12 | Smoke runner launches the built app with explicit platform target | WebDriver short feedback | `pnpm exec wdio run wdio.conf.ts --suite short-lifecycle` | ⬜ W0 | ⬜ pending |
+| 01-07-04 | 07 | 7 | OVLY-01, OVLY-02, OVLY-03, OVLY-04 | T-01-12 | Phase gate runs the complete built-app lifecycle matrix | WebDriver phase gate | `pnpm exec wdio run wdio.conf.ts --suite phase1-matrix` | ⬜ W0 | ⬜ pending |
 | 01-07-03 | 07 | 7 | OVLY-01, OVLY-02, OVLY-03, OVLY-04 | T-01-03, T-01-06 | CI records separate macOS and Windows evidence | CI build | `pnpm exec tauri build --debug` | ⬜ W0 | ⬜ pending |
 
 ## Wave 0 Requirements
 
 - [ ] `package.json` and `pnpm-lock.yaml` — install the approved Vitest version during scaffold.
+- [ ] `vitest.config.ts` — explicitly defines the Vitest discovery contract used by scaffold and later component/state tests.
+- [ ] `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock` — pin and resolve the native dependency graph before the tracer.
 - [ ] `rust-toolchain.toml` — pin the Rust channel before native tests.
 - [ ] `src/state/overlay.test.ts` — created before the state-contract verification in Plan 03.
 - [ ] `src/components/mode-badge.test.tsx` and `src/components/error-badge.test.tsx` — created before their component verification tasks.
