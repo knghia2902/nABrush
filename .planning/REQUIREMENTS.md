@@ -103,41 +103,41 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OVLY-01 | Pending | Pending |
-| OVLY-02 | Pending | Pending |
-| OVLY-03 | Pending | Pending |
-| OVLY-04 | Pending | Pending |
-| OVLY-05 | Pending | Pending |
-| DISP-01 | Pending | Pending |
-| DISP-02 | Pending | Pending |
-| DISP-03 | Pending | Pending |
-| DISP-04 | Pending | Pending |
-| DRAW-01 | Pending | Pending |
-| DRAW-02 | Pending | Pending |
-| DRAW-03 | Pending | Pending |
-| DRAW-04 | Pending | Pending |
-| DRAW-05 | Pending | Pending |
-| DRAW-06 | Pending | Pending |
-| EDIT-01 | Pending | Pending |
-| EDIT-02 | Pending | Pending |
-| EDIT-03 | Pending | Pending |
-| EDIT-04 | Pending | Pending |
-| EDIT-05 | Pending | Pending |
-| EDIT-06 | Pending | Pending |
-| EXPT-01 | Pending | Pending |
-| EXPT-02 | Pending | Pending |
-| EXPT-03 | Pending | Pending |
-| EXPT-04 | Pending | Pending |
-| EXPT-05 | Pending | Pending |
-| RELS-01 | Pending | Pending |
-| RELS-02 | Pending | Pending |
-| RELS-03 | Pending | Pending |
+| OVLY-01 | Phase 1 | Pending |
+| OVLY-02 | Phase 1 | Pending |
+| OVLY-03 | Phase 1 | Pending |
+| OVLY-04 | Phase 1 | Pending |
+| OVLY-05 | Phase 5 | Pending |
+| DISP-01 | Phase 2 | Pending |
+| DISP-02 | Phase 2 | Pending |
+| DISP-03 | Phase 2 | Pending |
+| DISP-04 | Phase 2 | Pending |
+| DRAW-01 | Phase 3 | Pending |
+| DRAW-02 | Phase 3 | Pending |
+| DRAW-03 | Phase 3 | Pending |
+| DRAW-04 | Phase 3 | Pending |
+| DRAW-05 | Phase 3 | Pending |
+| DRAW-06 | Phase 3 | Pending |
+| EDIT-01 | Phase 4 | Pending |
+| EDIT-02 | Phase 4 | Pending |
+| EDIT-03 | Phase 4 | Pending |
+| EDIT-04 | Phase 4 | Pending |
+| EDIT-05 | Phase 4 | Pending |
+| EDIT-06 | Phase 4 | Pending |
+| EXPT-01 | Phase 5 | Pending |
+| EXPT-02 | Phase 5 | Pending |
+| EXPT-03 | Phase 5 | Pending |
+| EXPT-04 | Phase 5 | Pending |
+| EXPT-05 | Phase 5 | Pending |
+| RELS-01 | Phase 6 | Pending |
+| RELS-02 | Phase 6 | Pending |
+| RELS-03 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 29 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 29 ⚠️
+- Mapped to phases: 29
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-09*  
-*Last updated: 2026-09-09 after initial definition*
+*Last updated: 2026-09-09 after roadmap creation*
