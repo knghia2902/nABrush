@@ -75,8 +75,8 @@ export default function App() {
         <>
           <OverlaySurface mode={mode} scene={scene} viewport={viewport} onCommitStroke={commitStroke} />
           {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}
-          <ModeBadge mode={mode} />
-          <ErrorBadge />
+          <ModeBadge mode={mode} viewport={viewport} />
+          <ErrorBadge mode={mode} viewport={viewport} />
         </>
       )}
     </main>

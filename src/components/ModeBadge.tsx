@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import type { OverlayMode } from "../types/overlay";
+import type { DisplayViewport, OverlayMode } from "../types/overlay";
 
-type Props = { mode: OverlayMode };
+type Props = { mode: OverlayMode; viewport?: DisplayViewport };
 export const BADGE_TIMEOUT_MS = 2000;
-export const badgeCopy = (mode: OverlayMode) => mode === "VisibleClickThrough" ? "Click-through" : mode === "VisibleInteractive" ? "Drawing" : null;
+export const badgeCopy = (mode: OverlayMode) => mode === "VisibleClickThrough" ? "Xuyên qua" : mode === "VisibleInteractive" ? "Đang vẽ" : null;
 
-export function ModeBadge({ mode }: Props) {
+export function ModeBadge({ mode, viewport }: Props) {
   const [visible, setVisible] = useState(mode !== "Hidden");
 
   useEffect(() => {
@@ -19,9 +19,11 @@ export function ModeBadge({ mode }: Props) {
   const clickThrough = mode === "VisibleClickThrough";
   return (
     <div
-      aria-label={clickThrough ? "Click-through" : "Drawing"}
+      role="status"
+      aria-label={clickThrough ? "Xuyên qua" : "Đang vẽ"}
       className={`mode-badge ${clickThrough ? "mode-badge--pass-through" : "mode-badge--drawing"}`}
       data-scene-excluded="true"
+      data-display-id={viewport?.id}
     >
       {badgeCopy(mode)}
     </div>
