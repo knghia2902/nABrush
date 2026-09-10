@@ -10,16 +10,16 @@ requirements: [OVLY-01, OVLY-02, OVLY-03, OVLY-04]
 
 ## Goal verdict
 
-The implementation and automated native smoke path cover the phase goal. The phase remains pending until one macOS 13+ device and one Windows 10 22H2+ device provide evidence for cross-application shortcut delivery, pointer pass-through, and compositor/full-screen behavior.
+The implementation and automated native smoke path cover the phase goal. Manual UAT passed on the current macOS device for activation, drawing, Click-through, Escape/scene restoration, Settings reuse, conflict rollback, and Retry. The phase remains pending until a Windows 10 22H2+ device provides equivalent cross-application and compositor evidence.
 
 ## Must-have verification
 
 | Must-have | Evidence | Result |
 | --- | --- | --- |
-| Tray-owned cold launch with hidden overlay and settings lifecycle | `src-tauri/src/tray.rs`, Tauri debug build, WebDriver cold-launch test | Automated pass; device confirmation pending |
-| Configurable global activation while another app is focused | Shortcut registry unit tests, `tests/e2e/overlay.e2e.ts`, documented TextEdit/Notepad fixture | Native runner pass through debug action; real focus delivery pending |
-| Drawing and Click-through modes preserve one scene surface | Controller/platform tests, `short-lifecycle` and `phase1-matrix` WebDriver suites | Automated pass; pointer delivery pending |
-| Bare Escape hides and later restores the same scene | Retained-scene reducer tests and phase1-sentinel WebDriver assertion | Automated pass |
+| Tray-owned cold launch with hidden overlay and settings lifecycle | `src-tauri/src/tray.rs`, Tauri debug build, WebDriver cold-launch test, macOS UAT | Pass on macOS; Windows confirmation pending |
+| Configurable global activation while another app is focused | Shortcut registry unit tests, `tests/e2e/overlay.e2e.ts`, macOS UAT | Pass on macOS; Windows focus delivery pending |
+| Drawing and Click-through modes preserve one scene surface | Controller/platform tests, native drag coverage, macOS UAT | Pass on macOS; Windows pointer delivery pending |
+| Bare Escape hides and later restores the same scene | Retained-scene reducer tests, retained stroke WebDriver assertion, macOS UAT | Pass |
 | Recoverable conflict and initialization failure states | Rust error/shortcut tests and matrix fixture assertions | Automated pass |
 
 ## Requirement traceability
@@ -34,8 +34,10 @@ The implementation and automated native smoke path cover the phase goal. The pha
 ## Automated evidence
 
 - `pnpm typecheck` — pass.
-- `pnpm exec vitest run` — 3 files, 9 tests passed.
+- `pnpm exec vitest run` — 4 files, 13 tests passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` — 18 tests passed.
 - `cargo check --manifest-path src-tauri/Cargo.toml` — pass.
+- `pnpm build` — pass.
 - `pnpm exec tauri build --debug` — pass; debug executable starts with embedded WebDriver.
 - `pnpm exec wdio run wdio.conf.ts --suite short-lifecycle` — 5 tests passed.
 - `pnpm exec wdio run wdio.conf.ts --suite phase1-matrix` — 5 tests passed.
@@ -43,9 +45,9 @@ The implementation and automated native smoke path cover the phase goal. The pha
 
 ## Human verification
 
-1. On macOS 13+ and Windows 10 22H2+, launch nABrush from the menu bar/system tray and confirm no normal document window takes over the presentation. Focus another app and invoke the configured Cmd/Ctrl+Shift+A binding; record the OS version and evidence location.
-2. With the overlay visible over TextEdit (macOS) or Notepad (Windows), confirm Drawing captures a pointer mark, Click-through delivers a click to the known text target, and bare Escape hides the overlay while the tray process remains available.
-3. Open and close settings, confirm close-to-hide leaves the background process running, then trigger a shortcut conflict and an initialization failure fixture; confirm the previous binding remains and Retry is available.
-4. Record macOS Spaces/Stage Manager/native full-screen and Windows borderless versus exclusive full-screen observations. Mark protected-content or permission-denied outcomes as limitations.
+1. macOS UAT passed on the current device, including `Cmd+Shift+A`; Windows 10 22H2+ evidence remains pending.
+2. macOS UAT passed over TextEdit. The equivalent Windows Notepad check remains pending.
+3. macOS UAT passed repeated Settings open/close, conflict rollback, and Retry behavior.
+4. macOS full-screen/Space behavior passed in the prior UAT; Windows borderless versus exclusive full-screen observations remain pending.
 
 See `docs/support-matrix.md` for the evidence table. The phase must not advance until the two device rows are filled.
