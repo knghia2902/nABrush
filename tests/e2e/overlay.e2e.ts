@@ -16,6 +16,37 @@ async function waitForMode(expected: string, timeout = 15_000) {
   });
 }
 
+async function sceneSnapshot() {
+  return browser.execute(() => {
+    const main = document.querySelector("main");
+    return {
+      count: Number(main?.getAttribute("data-scene-count") ?? "0"),
+      ids: (main?.getAttribute("data-scene-ids") ?? "").split(",").filter(Boolean),
+    };
+  });
+}
+
+async function canvasPointerEvents() {
+  return browser.execute(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-overlay-canvas="true"]');
+    return canvas ? getComputedStyle(canvas).pointerEvents : "missing";
+  });
+}
+
+async function drawOneStroke() {
+  const canvas = await browser.$('[data-overlay-canvas="true"]');
+  await canvas.waitForDisplayed();
+  await canvas.moveTo({ x: 240, y: 180 });
+  await canvas.buttonDown(0);
+  await canvas.moveTo({ x: 360, y: 260, duration: 100 });
+  await canvas.buttonUp(0);
+  await browser.waitUntil(async () => (await sceneSnapshot()).count === 1, {
+    timeout: 15_000,
+    timeoutMsg: "Pointer drag did not commit one retained scene stroke",
+  });
+  return sceneSnapshot();
+}
+
 async function dispatchNativeAction(action: "Show" | "Hide" | "ToggleClickThrough" | "Esc") {
   return browser.execute(async (nextAction) => {
     const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: Function } }).__TAURI_INTERNALS__?.invoke;
@@ -58,6 +89,10 @@ async function showWithConfiguredShortcut() {
 }
 
 describe("Phase 1 overlay lifecycle", () => {
+  before(async () => {
+    await browser.tauri.switchWindow("overlay");
+  });
+
   it("cold launches in the background with a tray-owned hidden overlay", async () => {
     await expect(browser).toHaveTitle(/nABrush/i);
     await expect(await mode()).toBe("Hidden");
@@ -71,27 +106,34 @@ describe("Phase 1 overlay lifecycle", () => {
 
     await dispatchNativeAction("ToggleClickThrough");
     await waitForMode("VisibleClickThrough");
+    await expect(await canvasPointerEvents()).toBe("none");
 
     // The same controller path must still receive Esc after click-through.
     await dispatchNativeAction("Esc");
     await waitForMode("Hidden");
   });
 
-  it("restores the retained phase1-sentinel scene after emergency hide", async () => {
-    const sentinel = await browser.execute(() => {
-      document.documentElement.dataset.phase1Sentinel = "phase1-sentinel";
-      return document.documentElement.dataset.phase1Sentinel;
-    });
-    expect(sentinel).toBe("phase1-sentinel");
-
+  it("creates a real pointer stroke and restores it after click-through and emergency hide", async () => {
     await showWithConfiguredShortcut();
     await waitForMode("VisibleInteractive");
+    await dispatchNativeAction("ToggleClickThrough");
+    await waitForMode("VisibleClickThrough");
+    await dispatchNativeAction("ToggleClickThrough");
+    await waitForMode("VisibleInteractive");
+    await expect(await canvasPointerEvents()).toBe("auto");
+
+    const beforeHide = await drawOneStroke();
+    expect(beforeHide.count).toBe(1);
+    expect(beforeHide.ids).toHaveLength(1);
+    expect(beforeHide.ids[0]).toMatch(/^stroke-/);
+
     await dispatchNativeAction("Esc");
     await waitForMode("Hidden");
     await dispatchNativeAction("Show");
     await waitForMode("VisibleInteractive");
-
-    expect(await browser.execute(() => document.documentElement.dataset.phase1Sentinel)).toBe("phase1-sentinel");
+    const afterShow = await sceneSnapshot();
+    expect(afterShow).toEqual(beforeHide);
+    await expect(await browser.$('[data-overlay-canvas="true"]')).toBeDisplayed();
   });
 
   it("keeps settings controls in the settings window and the overlay surface isolated", async () => {
@@ -118,16 +160,14 @@ describe("Phase 1 overlay lifecycle", () => {
     await expect(await browser.$('[aria-label="Drawing mode"]')).toExist();
     await expect(await browser.$('[aria-label="Settings"]')).not.toExist();
 
-    const sentinel = await browser.execute(() => {
-      document.documentElement.dataset.phase1Sentinel = "phase1-sentinel";
-      return document.documentElement.dataset.phase1Sentinel;
-    });
-    expect(sentinel).toBe("phase1-sentinel");
+    const scene = await sceneSnapshot();
+    expect(scene.count).toBeGreaterThanOrEqual(1);
+    expect(scene.ids).toContain("stroke-1");
     await dispatchNativeAction("Esc");
     await waitForMode("Hidden");
     await dispatchNativeAction("Show");
     await waitForMode("VisibleInteractive");
-    expect(await browser.execute(() => document.documentElement.dataset.phase1Sentinel)).toBe("phase1-sentinel");
+    expect(await sceneSnapshot()).toEqual(scene);
   });
 });
 

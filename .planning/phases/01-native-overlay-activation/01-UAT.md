@@ -100,6 +100,10 @@ blocked: 0
     - "A user-facing drawing surface/tool control that commits a mark to the retained scene."
     - "A user-facing Click-through action wired to the native controller."
   diagnosis: "Phase 1 contains native mode seams and reducer fixtures, but the shipped webview has no pointer renderer or toolbar and the production shortcut handler only registers visibility, so manual drawing and click-through cannot be exercised."
+  root_cause_evidence:
+    - "src/App.tsx renders only ModeBadge and ErrorBadge for the overlay; no canvas or pointer handler exists."
+    - "AppController::set_click_through and ToggleClickThrough are reachable only through native/debug paths."
+    - "main.rs registers only the visibility shortcut; the other shortcut values are stored but not bound to OS callbacks."
 
 - gap_id: G-01-4
   truth: "Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry."
@@ -115,3 +119,6 @@ blocked: 0
   missing:
     - "A deterministic, user-reproducible Settings open/close lifecycle."
   diagnosis: "The Settings surface is not reliably reachable from the tray during manual UAT; the current native show path has no visible diagnostic or retry feedback when the window/webview fails to present."
+  root_cause_evidence:
+    - "main.rs handles CloseRequested with window.hide() but does not call event.api.prevent_close(), so Tauri destroys the reusable settings window."
+    - "controller.rs silently returns Ok(()) when the settings window is missing, and tray.rs discards the result."
