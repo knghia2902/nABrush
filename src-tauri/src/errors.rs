@@ -58,6 +58,16 @@ pub fn overlay_initialization_error() -> ErrorState {
     }
 }
 
+pub fn shortcut_registration_error(accelerator: &str, error: &tauri::Error) -> ErrorState {
+    ErrorState {
+        code: ErrorCode::ShortcutPermission,
+        message: format!("Shortcut `{accelerator}` is unavailable. Open Settings to choose another binding."),
+        platform_detail: Some(error.to_string()),
+        persistent: true,
+        actions: vec![],
+    }
+}
+
 pub fn report_controller_failure<R: Runtime>(app: &AppHandle<R>, action: &str, error: &tauri::Error) {
     let state = if action == "settings" {
         settings_window_unavailable()

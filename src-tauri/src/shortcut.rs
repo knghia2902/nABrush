@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Mutex};
+use std::{collections::{BTreeMap, BTreeSet}, sync::Mutex};
 use std::str::FromStr;
 use tauri::{AppHandle, Manager, Runtime, State};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::controller::{AppController, ShortcutAction};
+use crate::errors::{shortcut_registration_error, ErrorStore};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum BindingAction {
@@ -23,6 +24,7 @@ pub struct ShortcutConflict {
 
 pub struct ShortcutRegistry {
     bindings: Mutex<BTreeMap<BindingAction, String>>,
+    registered: Mutex<BTreeSet<BindingAction>>,
 }
 
 impl Default for ShortcutRegistry {
@@ -32,7 +34,7 @@ impl Default for ShortcutRegistry {
         bindings.insert(BindingAction::ClickThrough, "commandOrControl+shift+KeyT".into());
         bindings.insert(BindingAction::AlternateEmergency, "commandOrControl+shift+KeyH".into());
         bindings.insert(BindingAction::Escape, "Escape".into());
-        Self { bindings: Mutex::new(bindings) }
+        Self { bindings: Mutex::new(bindings), registered: Mutex::new(BTreeSet::new()) }
     }
 }
 
@@ -62,6 +64,18 @@ impl ShortcutRegistry {
 
     pub fn commit(&self, candidate: BTreeMap<BindingAction, String>) {
         *self.bindings.lock().expect("shortcut mutex poisoned") = candidate;
+    }
+
+    fn is_registered(&self, action: BindingAction) -> bool {
+        self.registered.lock().expect("shortcut mutex poisoned").contains(&action)
+    }
+
+    fn mark_registered(&self, action: BindingAction) {
+        self.registered.lock().expect("shortcut mutex poisoned").insert(action);
+    }
+
+    fn mark_unregistered(&self, action: BindingAction) {
+        self.registered.lock().expect("shortcut mutex poisoned").remove(&action);
     }
 }
 
@@ -93,22 +107,19 @@ fn register_binding<R: Runtime>(app: &AppHandle<R>, action: BindingAction, accel
 }
 
 pub fn register_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let bindings = app.state::<ShortcutRegistry>().bindings();
+    let registry = app.state::<ShortcutRegistry>();
+    let bindings = registry.bindings();
     for (action, accelerator) in bindings {
-        // The default Visibility binding is installed by the plugin builder so
-        // it is available during early startup. Rebindings still unregister
-        // that tracked shortcut and register the replacement below.
-        if action == BindingAction::Visibility {
+        if let Err(error) = register_binding(app, action, &accelerator) {
+            eprintln!("nABrush could not register {action:?} shortcut `{accelerator}`: {error}");
+            if let Err(report_error) = app.state::<ErrorStore>().publish(app, Some(shortcut_registration_error(&accelerator, &error))) {
+                eprintln!("nABrush could not publish shortcut error: {report_error}");
+            }
             continue;
         }
-        register_binding(app, action, &accelerator)?;
+        registry.mark_registered(action);
     }
     Ok(())
-}
-
-pub fn default_visibility_shortcut() -> Shortcut {
-    let modifier = if cfg!(target_os = "macos") { Modifiers::SUPER } else { Modifiers::CONTROL };
-    Shortcut::new(Some(modifier | Modifiers::SHIFT), Code::KeyA)
 }
 
 pub fn rebind_runtime<R: Runtime>(
@@ -133,21 +144,28 @@ pub fn rebind_runtime<R: Runtime>(
         message: error.to_string(),
         suggestion: "Try restarting nABrush".into(),
     })?;
-    if let Err(error) = app.global_shortcut().unregister(previous_shortcut) {
-        return Err(ShortcutConflict {
-            action,
-            message: format!("Could not replace the current shortcut: {error}"),
-            suggestion: "Try again or restart nABrush".into(),
-        });
+    let was_registered = state.is_registered(action);
+    if was_registered {
+        if let Err(error) = app.global_shortcut().unregister(previous_shortcut) {
+            return Err(ShortcutConflict {
+                action,
+                message: format!("Could not replace the current shortcut: {error}"),
+                suggestion: "Try again or restart nABrush".into(),
+            });
+        }
+        state.mark_unregistered(action);
     }
 
     match register_binding(app, action, accelerator) {
         Ok(()) => {
             state.commit(candidate.clone());
+            state.mark_registered(action);
             Ok(candidate)
         }
         Err(error) => {
-            let _ = register_binding(app, action, &previous);
+            if was_registered && register_binding(app, action, &previous).is_ok() {
+                state.mark_registered(action);
+            }
             Err(ShortcutConflict {
                 action,
                 message: format!("That shortcut could not be registered: {error}"),
