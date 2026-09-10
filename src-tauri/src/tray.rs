@@ -1,5 +1,5 @@
 use crate::controller::{AppController, ShortcutAction};
-pub use crate::errors::{get_error_state, set_error_state};
+use crate::errors::report_controller_failure;
 use tauri::{menu::MenuBuilder, tray::TrayIconBuilder, AppHandle, Manager, Runtime};
 
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -20,16 +20,24 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             let controller = app.state::<AppController>();
             match event.id().0.as_str() {
                 "show" => {
-                    let _ = controller.show(app);
+                    if let Err(error) = controller.show(app) {
+                        report_controller_failure(app, "show", &error);
+                    }
                 }
                 "hide" => {
-                    let _ = controller.hide(app);
+                    if let Err(error) = controller.hide(app) {
+                        report_controller_failure(app, "hide", &error);
+                    }
                 }
                 "click-through" => {
-                    let _ = controller.dispatch_action(app, ShortcutAction::ToggleClickThrough);
+                    if let Err(error) = controller.dispatch_action(app, ShortcutAction::ToggleClickThrough) {
+                        report_controller_failure(app, "click-through", &error);
+                    }
                 }
                 "settings" => {
-                    let _ = controller.show_settings(app);
+                    if let Err(error) = controller.show_settings(app) {
+                        report_controller_failure(app, "settings", &error);
+                    }
                 }
                 "quit" => app.exit(0),
                 _ => {}

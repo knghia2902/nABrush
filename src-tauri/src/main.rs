@@ -64,6 +64,42 @@ fn test_show_settings(
     }
 }
 
+#[tauri::command]
+fn test_request_close_settings(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = app;
+        return Err("Phase 1 smoke actions are available only in debug builds".into());
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        let window = app
+            .get_webview_window(controller::SETTINGS_LABEL)
+            .ok_or_else(|| "Settings window is unavailable".to_owned())?;
+        window.close().map_err(|error| error.to_string())
+    }
+}
+
+#[tauri::command]
+fn test_inject_overlay_error(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, errors::ErrorStore>,
+) -> Result<(), String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (app, state);
+        return Err("Phase 1 smoke actions are available only in debug builds".into());
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        state
+            .publish(&app, Some(errors::overlay_initialization_error()))
+            .map_err(|error| error.to_string())
+    }
+}
+
 fn main() {
     let builder = tauri::Builder::default();
 
@@ -82,6 +118,8 @@ fn main() {
             errors::open_system_settings,
             test_dispatch_action,
             test_show_settings,
+            test_request_close_settings,
+            test_inject_overlay_error,
         ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -89,8 +127,11 @@ fn main() {
         )
         .setup(|app| Ok(setup(app)?))
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                let _ = window.hide();
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                if let Err(error) = window.hide() {
+                    errors::report_controller_failure(&window.app_handle(), "close", &error);
+                }
             }
         })
         .run(tauri::generate_context!())

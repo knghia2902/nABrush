@@ -105,10 +105,9 @@ impl AppController {
     }
 
     pub fn show_settings<R: Runtime>(&self, app: &AppHandle<R>) -> tauri::Result<()> {
-        if let Some(window) = app.get_webview_window(SETTINGS_LABEL) {
-            window.show()?;
-            window.set_focus()?;
-        }
+        let window = app.get_webview_window(SETTINGS_LABEL).ok_or(tauri::Error::WindowNotFound)?;
+        window.show()?;
+        window.set_focus()?;
         Ok(())
     }
 
