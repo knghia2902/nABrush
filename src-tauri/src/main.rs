@@ -4,6 +4,7 @@ mod controller;
 mod display;
 mod errors;
 mod mode_schema;
+mod overlay_registry;
 mod platform;
 mod shortcut;
 mod startup;

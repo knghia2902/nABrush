@@ -7,6 +7,7 @@ use crate::display::{
     DisplayViewport,
 };
 use crate::platform::PlatformWindowAdapter;
+use crate::overlay_registry::{OverlayRegistry, RegistryError};
 
 pub const OVERLAY_LABEL: &str = "overlay";
 pub const SETTINGS_LABEL: &str = "settings";
@@ -64,6 +65,17 @@ impl Default for AppController {
 }
 
 impl AppController {
+    /// Apply a lifecycle mode to the registry in one in-memory transaction.
+    /// The caller emits the corresponding app event only after this returns.
+    pub fn apply_registry_mode(
+        &self,
+        registry: &mut OverlayRegistry,
+        mode: OverlayMode,
+    ) -> Result<(), RegistryError> {
+        registry.apply_mode(mode);
+        Ok(())
+    }
+
     pub fn snapshot(&self) -> LifecycleSnapshot {
         self.state
             .lock()
