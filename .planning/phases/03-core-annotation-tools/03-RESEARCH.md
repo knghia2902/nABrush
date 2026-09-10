@@ -11,47 +11,47 @@
 
 ### Bảng tool và thuộc tính
 
-- **D3-01:** Toolbar luôn hiển thị trong chế độ vẽ và đặt ở cạnh dưới màn hình. Toolbar
+- **D-01:** Toolbar luôn hiển thị trong chế độ vẽ và đặt ở cạnh dưới màn hình. Toolbar
   là UI chrome, không phải scene item và không được đi vào export.
-- **D3-02:** Click một lần để chọn tool; tool được chọn tiếp tục áp dụng cho các nét
+- **D-02:** Click một lần để chọn tool; tool được chọn tiếp tục áp dụng cho các nét
   tiếp theo.
-- **D3-03:** Toolbar giữ gọn; click nút thuộc tính sẽ mở một bảng nhỏ cho tool đang
+- **D-03:** Toolbar giữ gọn; click nút thuộc tính sẽ mở một bảng nhỏ cho tool đang
   chọn thay vì luôn phơi tất cả control.
-- **D3-04:** Màu, opacity, width, fill và cỡ chữ được nhớ riêng theo từng tool trong
+- **D-04:** Màu, opacity, width, fill và cỡ chữ được nhớ riêng theo từng tool trong
   phiên chạy hiện tại. Không cần đưa session style vào cloud hay database.
-- **D3-05:** Nét mặc định phải thon hơn hiện tại, đặc biệt với pen, line, arrow và
+- **D-05:** Nét mặc định phải thon hơn hiện tại, đặc biệt với pen, line, arrow và
   outline; người dùng vẫn có thể chỉnh width. Con số width mặc định cụ thể để kế
   hoạch xác định và kiểm tra bằng preview trực quan.
 
 ### Nét và hình học
 
-- **D3-06:** Pointer path đang hoạt động được render trong transient preview theo thời
+- **D-06:** Pointer path đang hoạt động được render trong transient preview theo thời
   gian thực; chỉ commit vào retained scene khi thao tác hợp lệ kết thúc.
-- **D3-07:** Kéo line, arrow, rectangle hoặc ellipse dưới ngưỡng nhỏ không tạo item.
-- **D3-08:** Arrow dùng đầu mũi tên tam giác đặc, gọn và dễ nhìn.
-- **D3-09:** Rectangle và ellipse có lựa chọn fill riêng và giữ style riêng theo từng
+- **D-07:** Kéo line, arrow, rectangle hoặc ellipse dưới ngưỡng nhỏ không tạo item.
+- **D-08:** Arrow dùng đầu mũi tên tam giác đặc, gọn và dễ nhìn.
+- **D-09:** Rectangle và ellipse có lựa chọn fill riêng và giữ style riêng theo từng
   tool; stroke, fill và opacity đều là thuộc tính của shape tương ứng.
-- **D3-10:** Nhấn `Esc` hoặc kết thúc thao tác ngoài vùng overlay sẽ hủy preview hiện
+- **D-10:** Nhấn `Esc` hoặc kết thúc thao tác ngoài vùng overlay sẽ hủy preview hiện
   tại, không thay đổi scene đã có.
 
 ### Text
 
-- **D3-11:** Click một điểm trên canvas sẽ đặt con trỏ text tại điểm đó và bắt đầu nhập
+- **D-11:** Click một điểm trên canvas sẽ đặt con trỏ text tại điểm đó và bắt đầu nhập
   ngay, không yêu cầu kéo khung trước.
-- **D3-12:** `Enter` commit text nháp, `Shift + Enter` chèn dòng mới, và `Esc` hủy
+- **D-12:** `Enter` commit text nháp, `Shift + Enter` chèn dòng mới, và `Esc` hủy
   text nháp. Hủy không được thay đổi các annotation hiện có.
-- **D3-13:** Phase 3 chỉ cho phép chỉnh text trước khi commit. Chỉnh text đã commit
+- **D-13:** Phase 3 chỉ cho phép chỉnh text trước khi commit. Chỉnh text đã commit
   được để Phase 4 cùng với selection/editing sâu hơn.
 
 ### Eraser
 
-- **D3-14:** Eraser dùng click để xóa đúng một annotation; thao tác kéo không xóa
+- **D-14:** Eraser dùng click để xóa đúng một annotation; thao tác kéo không xóa
   hàng loạt.
-- **D3-15:** Khi annotation chồng lên nhau, eraser chọn item được tạo sau cùng (item
+- **D-15:** Khi annotation chồng lên nhau, eraser chọn item được tạo sau cùng (item
   nằm trên cùng).
-- **D3-16:** Hit-area phụ thuộc loại item: stroke bắt theo đường tâm cộng vùng đệm;
+- **D-16:** Hit-area phụ thuộc loại item: stroke bắt theo đường tâm cộng vùng đệm;
   shape bắt theo vùng fill hoặc viền; text bắt theo khung chữ.
-- **D3-17:** Khi rê chuột bằng eraser, item mục tiêu được highlight trước; click mới
+- **D-17:** Khi rê chuột bằng eraser, item mục tiêu được highlight trước; click mới
   thực hiện xóa.
 
 [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:21-67]
@@ -91,7 +91,7 @@
 |----|-------------|------------------|
 | DRAW-01 | User can draw freehand strokes with configurable color, opacity, and width. | Mở rộng transient stroke hiện có thành typed stroke + style; test preview, commit và per-tool style trong `src/components/overlay-surface.test.tsx` [VERIFIED: .planning/REQUIREMENTS.md:25-32]. |
 | DRAW-02 | User can draw a semi-transparent highlighter stroke with configurable color, opacity, and width. | Dùng cùng path/coordinate pipeline với pen, khác style/compositing; giữ retained semantic item thay vì raster riêng [VERIFIED: .planning/REQUIREMENTS.md:27-28]. |
-| DRAW-03 | User can draw straight lines and arrows with configurable color, opacity, and width. | Dùng start/end geometry, transient preview và arrowhead tam giác đặc theo D3-06…D3-08 [VERIFIED: .planning/REQUIREMENTS.md:29-29; .planning/phases/03-core-annotation-tools/03-CONTEXT.md:40-43]. |
+| DRAW-03 | User can draw straight lines and arrows with configurable color, opacity, and width. | Dùng start/end geometry, transient preview và arrowhead tam giác đặc theo D-06…D-08 [VERIFIED: .planning/REQUIREMENTS.md:29-29; .planning/phases/03-core-annotation-tools/03-CONTEXT.md:40-43]. |
 | DRAW-04 | User can draw rectangles and ellipses with configurable stroke and fill/opacity settings. | Dùng bounds canonical, stroke/fill style và `CanvasRenderingContext2D.ellipse()` [CITED: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/ellipse]. |
 | DRAW-05 | User can create, edit, commit, or cancel a text annotation with configurable color and text size. | Dùng draft editor tạm thời, `Enter`, `Shift + Enter`, `Esc`, IME guard và canvas text metrics; không mở editor text đã commit [VERIFIED: .planning/REQUIREMENTS.md:31-31; .planning/phases/03-core-annotation-tools/03-CONTEXT.md:51-56]. |
 | DRAW-06 | User can erase an annotation using an eraser tool without affecting unrelated annotations. | Reverse-order hit-test + `erase_scene_item` một ID + full snapshot broadcast; drag không được gọi erase nhiều lần [VERIFIED: .planning/REQUIREMENTS.md:32-32; .planning/phases/03-core-annotation-tools/03-CONTEXT.md:60-67]. |
@@ -224,7 +224,7 @@ Khi `tool === "eraser"`, pointer move chỉ tính `hoveredItemId` và render hig
 ### Anti-Patterns to Avoid
 
 - **Hard-code one red 4px style:** `redraw` hiện đặt `strokeStyle = "rgba(239, 68, 68, 0.92)"` và `lineWidth = 4`; chuyển style vào từng retained item để pen/highlighter/shape/text không biến thành một visual [VERIFIED: src/components/OverlaySurface.tsx:143-149].
-- **Vẽ trực tiếp vào scene khi pointer move:** phá D3-06 và tạo item rác; chỉ state transient được thay đổi cho preview [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:40-47].
+- **Vẽ trực tiếp vào scene khi pointer move:** phá D-06 và tạo item rác; chỉ state transient được thay đổi cho preview [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:40-47].
 - **Hit-test theo DOM/canvas pixel:** không ổn định qua rotation/DPR; dùng canonical geometry và transform helpers hiện có [VERIFIED: src/components/OverlaySurface.tsx:45-72].
 - **Để toolbar nằm trong canvas scene hoặc bật pointer events toàn `main`:** toolbar sẽ lọt export/chặn click-through; chỉ descendants chrome opt-in `pointer-events: auto`, và ẩn/không tương tác ngoài drawing mode theo quyết định UI [VERIFIED: src/styles.css:3-5; .planning/phases/03-core-annotation-tools/03-CONTEXT.md:26-33,75-77].
 - **Chỉ validate ở TypeScript:** webview payload là untrusted; positive validation phải ở Rust trusted service layer [CITED: https://cornucopia.owasp.org/taxonomy/asvs-5.0/02-validation-and-business-logic/02-input-validation].
@@ -422,7 +422,7 @@ thành quyết định hoặc checkpoint trước implementation [VERIFIED: rese
    - What's unclear: backward compatibility mong muốn của phase với stroke sentinel cũ.  
    - Recommendation: planner chọn `kind` category + `tool` để mở rộng ít phá vỡ nhất; ghi schema JSON/type quote trong plan [ASSUMED].
 2. **Default widths, opacity và threshold chính xác là bao nhiêu?**  
-   - What we know: D3-05/D3 discretion yêu cầu nét thon và visual preview, không khóa số [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:34-36,69-74].  
+   - What we know: D-05/D3 discretion yêu cầu nét thon và visual preview, không khóa số [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:34-36,69-74].  
    - What's unclear: cảm giác trên scale factor/độ phân giải và pen/highlighter contrast.  
    - Recommendation: bắt đầu bằng constants logical, unit-test invariant/range và manual visual check trên cả hai OS [ASSUMED].
 3. **Toolbar có hiện ở `VisibleClickThrough` không?**  

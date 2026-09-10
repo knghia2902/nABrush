@@ -104,6 +104,7 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [ ] 02-04-PLAN.md — Native platform observers, E2E matrix, and support evidence
+
 **Success Criteria** (what must be TRUE):
 
   1. User sees an overlay on every connected display with marks aligned to each display's resolution, orientation, scale factor, and negative desktop coordinates.
@@ -130,10 +131,20 @@ Plans:
 
 **Plans:** 4 plans
 Plans:
+**Wave 1**
 
 - [ ] 03-01-PLAN.md — Pen/highlighter tracer, typed scene validation, toolbar and per-tool styles
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-02-PLAN.md — Line/arrow and rectangle/ellipse geometry tools with preview and fill styles
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-03-PLAN.md — Text draft lifecycle, canonical hit-testing and single-item eraser
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 03-04-PLAN.md — Native tool smoke suite and validation traceability
 
 ### Phase 4: Editing & Ink Lifecycle

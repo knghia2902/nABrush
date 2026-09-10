@@ -91,22 +91,22 @@ the existing project scripts and tool configuration.
 | RESEARCH | R-06 | Reverse topmost type-specific hit-test and one-item erase | 03-03, 03-04 | COVERED |
 | RESEARCH | R-07 | Malformed/oversized payload, duplicate ID and pointer interception mitigations | 03-01, 03-03, 03-04 | COVERED |
 | RESEARCH | R-08 | Existing Canvas/React/Rust/Vitest/WebdriverIO stack and no new dependency | 03-01 through 03-04 | COVERED |
-| CONTEXT | D3-01 | Bottom drawing toolbar, UI chrome, scene-excluded | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D3-02 | One-click persistent tool selection | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D3-03 | Compact property popover for active tool | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D3-04 | Per-tool in-session color/opacity/width/fill/text-size memory | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D3-05 | Thinner defaults with adjustable width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D3-06 | Realtime transient preview and valid-end commit | 03-01-01, 03-02-01, 03-02-02 | COVERED |
-| CONTEXT | D3-07 | Short geometry drag ignored | 03-02-01, 03-02-02 | COVERED |
-| CONTEXT | D3-08 | Solid compact triangular arrowhead | 03-02-01, 03-04-01 | COVERED |
-| CONTEXT | D3-09 | Independent rectangle/ellipse fill style | 03-02-02, 03-01-02 | COVERED |
-| CONTEXT | D3-10 | Esc/outside/mode/focus cancellation without scene mutation | 03-02-01, 03-03-01 | COVERED |
-| CONTEXT | D3-11 | Click-to-place text and immediate input | 03-03-01, 03-04-01 | COVERED |
-| CONTEXT | D3-12 | Enter commit, Shift+Enter newline, Esc cancel | 03-03-01, 03-04-01 | COVERED |
-| CONTEXT | D3-13 | Draft-only editing; committed text stays unchanged | 03-03-01 | COVERED |
-| CONTEXT | D3-14 | Click-only eraser removes one item | 03-03-02, 03-04-01 | COVERED |
-| CONTEXT | D3-15 | Latest/topmost overlap wins | 03-03-01, 03-03-02 | COVERED |
-| CONTEXT | D3-16 | Type-specific padded hit-test | 03-03-01, 03-03-02 | COVERED |
-| CONTEXT | D3-17 | Hover highlight before click mutation | 03-03-02, 03-04-01 | COVERED |
+| CONTEXT | D-01 | Bottom drawing toolbar, UI chrome, scene-excluded | 03-01-02, 03-04-01 | COVERED |
+| CONTEXT | D-02 | One-click persistent tool selection | 03-01-02, 03-04-01 | COVERED |
+| CONTEXT | D-03 | Compact property popover for active tool | 03-01-02, 03-04-01 | COVERED |
+| CONTEXT | D-04 | Per-tool in-session color/opacity/width/fill/text-size memory | 03-01-02, 03-04-01 | COVERED |
+| CONTEXT | D-05 | Thinner defaults with adjustable width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
+| CONTEXT | D-06 | Realtime transient preview and valid-end commit | 03-01-01, 03-02-01, 03-02-02 | COVERED |
+| CONTEXT | D-07 | Short geometry drag ignored | 03-02-01, 03-02-02 | COVERED |
+| CONTEXT | D-08 | Solid compact triangular arrowhead | 03-02-01, 03-04-01 | COVERED |
+| CONTEXT | D-09 | Independent rectangle/ellipse fill style | 03-02-02, 03-01-02 | COVERED |
+| CONTEXT | D-10 | Esc/outside/mode/focus cancellation without scene mutation | 03-02-01, 03-03-01 | COVERED |
+| CONTEXT | D-11 | Click-to-place text and immediate input | 03-03-01, 03-04-01 | COVERED |
+| CONTEXT | D-12 | Enter commit, Shift+Enter newline, Esc cancel | 03-03-01, 03-04-01 | COVERED |
+| CONTEXT | D-13 | Draft-only editing; committed text stays unchanged | 03-03-01 | COVERED |
+| CONTEXT | D-14 | Click-only eraser removes one item | 03-03-02, 03-04-01 | COVERED |
+| CONTEXT | D-15 | Latest/topmost overlap wins | 03-03-01, 03-03-02 | COVERED |
+| CONTEXT | D-16 | Type-specific padded hit-test | 03-03-01, 03-03-02 | COVERED |
+| CONTEXT | D-17 | Hover highlight before click mutation | 03-03-02, 03-04-01 | COVERED |
 
 **Approval:** pending

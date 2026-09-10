@@ -23,47 +23,47 @@ persistent/vanishing, capture và export thuộc các phase sau.
 
 ### Bảng tool và thuộc tính
 
-- **D3-01:** Toolbar luôn hiển thị trong chế độ vẽ và đặt ở cạnh dưới màn hình. Toolbar
+- **D-01:** Toolbar luôn hiển thị trong chế độ vẽ và đặt ở cạnh dưới màn hình. Toolbar
   là UI chrome, không phải scene item và không được đi vào export.
-- **D3-02:** Click một lần để chọn tool; tool được chọn tiếp tục áp dụng cho các nét
+- **D-02:** Click một lần để chọn tool; tool được chọn tiếp tục áp dụng cho các nét
   tiếp theo.
-- **D3-03:** Toolbar giữ gọn; click nút thuộc tính sẽ mở một bảng nhỏ cho tool đang
+- **D-03:** Toolbar giữ gọn; click nút thuộc tính sẽ mở một bảng nhỏ cho tool đang
   chọn thay vì luôn phơi tất cả control.
-- **D3-04:** Màu, opacity, width, fill và cỡ chữ được nhớ riêng theo từng tool trong
+- **D-04:** Màu, opacity, width, fill và cỡ chữ được nhớ riêng theo từng tool trong
   phiên chạy hiện tại. Không cần đưa session style vào cloud hay database.
-- **D3-05:** Nét mặc định phải thon hơn hiện tại, đặc biệt với pen, line, arrow và
+- **D-05:** Nét mặc định phải thon hơn hiện tại, đặc biệt với pen, line, arrow và
   outline; người dùng vẫn có thể chỉnh width. Con số width mặc định cụ thể để kế
   hoạch xác định và kiểm tra bằng preview trực quan.
 
 ### Nét và hình học
 
-- **D3-06:** Pointer path đang hoạt động được render trong transient preview theo thời
+- **D-06:** Pointer path đang hoạt động được render trong transient preview theo thời
   gian thực; chỉ commit vào retained scene khi thao tác hợp lệ kết thúc.
-- **D3-07:** Kéo line, arrow, rectangle hoặc ellipse dưới ngưỡng nhỏ không tạo item.
-- **D3-08:** Arrow dùng đầu mũi tên tam giác đặc, gọn và dễ nhìn.
-- **D3-09:** Rectangle và ellipse có lựa chọn fill riêng và giữ style riêng theo từng
+- **D-07:** Kéo line, arrow, rectangle hoặc ellipse dưới ngưỡng nhỏ không tạo item.
+- **D-08:** Arrow dùng đầu mũi tên tam giác đặc, gọn và dễ nhìn.
+- **D-09:** Rectangle và ellipse có lựa chọn fill riêng và giữ style riêng theo từng
   tool; stroke, fill và opacity đều là thuộc tính của shape tương ứng.
-- **D3-10:** Nhấn `Esc` hoặc kết thúc thao tác ngoài vùng overlay sẽ hủy preview hiện
+- **D-10:** Nhấn `Esc` hoặc kết thúc thao tác ngoài vùng overlay sẽ hủy preview hiện
   tại, không thay đổi scene đã có.
 
 ### Text
 
-- **D3-11:** Click một điểm trên canvas sẽ đặt con trỏ text tại điểm đó và bắt đầu nhập
+- **D-11:** Click một điểm trên canvas sẽ đặt con trỏ text tại điểm đó và bắt đầu nhập
   ngay, không yêu cầu kéo khung trước.
-- **D3-12:** `Enter` commit text nháp, `Shift + Enter` chèn dòng mới, và `Esc` hủy
+- **D-12:** `Enter` commit text nháp, `Shift + Enter` chèn dòng mới, và `Esc` hủy
   text nháp. Hủy không được thay đổi các annotation hiện có.
-- **D3-13:** Phase 3 chỉ cho phép chỉnh text trước khi commit. Chỉnh text đã commit
+- **D-13:** Phase 3 chỉ cho phép chỉnh text trước khi commit. Chỉnh text đã commit
   được để Phase 4 cùng với selection/editing sâu hơn.
 
 ### Eraser
 
-- **D3-14:** Eraser dùng click để xóa đúng một annotation; thao tác kéo không xóa
+- **D-14:** Eraser dùng click để xóa đúng một annotation; thao tác kéo không xóa
   hàng loạt.
-- **D3-15:** Khi annotation chồng lên nhau, eraser chọn item được tạo sau cùng (item
+- **D-15:** Khi annotation chồng lên nhau, eraser chọn item được tạo sau cùng (item
   nằm trên cùng).
-- **D3-16:** Hit-area phụ thuộc loại item: stroke bắt theo đường tâm cộng vùng đệm;
+- **D-16:** Hit-area phụ thuộc loại item: stroke bắt theo đường tâm cộng vùng đệm;
   shape bắt theo vùng fill hoặc viền; text bắt theo khung chữ.
-- **D3-17:** Khi rê chuột bằng eraser, item mục tiêu được highlight trước; click mới
+- **D-17:** Khi rê chuột bằng eraser, item mục tiêu được highlight trước; click mới
   thực hiện xóa.
 
 ### the agent's Discretion
