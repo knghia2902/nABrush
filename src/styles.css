@@ -13,3 +13,14 @@ main { min-height: 100vh; pointer-events: none; }
 .error-badge__detail { flex: 1 1 100%; color: rgba(255, 255, 255, 0.84); overflow-wrap: anywhere; }
 .error-badge button { min-height: 44px; border: 0; border-radius: 4px; padding: 8px 12px; background: white; color: #7f1d1d; font: inherit; cursor: pointer; }
 .error-badge button:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.annotation-toolbar { position: fixed; left: 50%; bottom: 20px; z-index: 5; display: flex; max-width: calc(100vw - 32px); transform: translateX(-50%); padding: 6px; border: 1px solid rgba(148, 163, 184, 0.65); border-radius: 12px; background: rgba(15, 23, 42, 0.94); box-shadow: 0 8px 28px rgba(15, 23, 42, 0.32); pointer-events: none; }
+.annotation-toolbar__tools { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
+.annotation-toolbar button { min-height: 36px; border: 0; border-radius: 7px; padding: 6px 9px; color: #e2e8f0; background: transparent; font: 600 12px/1.1 system-ui, sans-serif; cursor: pointer; pointer-events: auto; }
+.annotation-toolbar button:hover { background: rgba(148, 163, 184, 0.22); }
+.annotation-toolbar button[aria-pressed="true"] { color: #0f172a; background: #f8fafc; }
+.annotation-toolbar__properties { margin-left: 4px; border-left: 1px solid rgba(148, 163, 184, 0.4) !important; border-radius: 0 !important; font-size: 16px !important; }
+.annotation-toolbar button:focus-visible, .property-popover input:focus-visible, .property-popover select:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.property-popover { position: fixed; left: 50%; bottom: 74px; z-index: 6; display: grid; gap: 10px; min-width: 220px; padding: 14px; transform: translateX(-50%); border: 1px solid rgba(148, 163, 184, 0.65); border-radius: 10px; background: rgba(255, 255, 255, 0.97); color: #0f172a; box-shadow: 0 12px 34px rgba(15, 23, 42, 0.28); pointer-events: auto; }
+.property-popover label { display: grid; grid-template-columns: 1fr minmax(96px, 1.35fr); align-items: center; gap: 12px; font-size: 12px; font-weight: 600; }
+.property-popover input[type="color"] { width: 42px; height: 28px; justify-self: end; padding: 0; border: 1px solid #cbd5e1; border-radius: 5px; }
+.property-popover input[type="range"], .property-popover select { width: 100%; }
