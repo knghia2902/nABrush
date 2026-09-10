@@ -11,7 +11,7 @@ nABrush sẽ được xây theo sáu lát dọc, mỗi lát hoàn thiện một 
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Native Overlay & Activation** - Khởi chạy từ tray/menu bar, bật overlay bằng phím tắt và chuyển đổi vẽ/click-through an toàn.
+- [x] **Phase 1: Native Overlay & Activation** - Khởi chạy từ tray/menu bar, bật overlay bằng phím tắt và chuyển đổi vẽ/click-through an toàn. (completed 2026-09-10)
 - [ ] **Phase 2: Display Topology & Platform Parity** - Hiển thị đúng trên mọi màn hình, mixed-DPI, full-screen và thay đổi topology.
 - [ ] **Phase 3: Core Annotation Tools** - Vẽ bút, highlight, đường, mũi tên, hình dạng và chữ trên scene giữ lại.
 - [ ] **Phase 4: Editing & Ink Lifecycle** - Hoàn tác, tẩy, xóa, style theo tool và nét persistent/vanishing.
@@ -26,7 +26,7 @@ nABrush sẽ được xây theo sáu lát dọc, mỗi lát hoàn thiện một 
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: OVLY-01, OVLY-02, OVLY-03, OVLY-04
-**Plans:** 9/9 plans executed
+**Plans:** 11/11 plans complete
 Plans:
 
 - [x] 01-08-PLAN.md
@@ -159,7 +159,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Native Overlay & Activation | 9/9 | In Progress|  |
+| 1. Native Overlay & Activation | 11/11 | Complete    | 2026-09-10 |
 | 2. Display Topology & Platform Parity | 0/TBD | Not started | - |
 | 3. Core Annotation Tools | 0/TBD | Not started | - |
 | 4. Editing & Ink Lifecycle | 0/TBD | Not started | - |

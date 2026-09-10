@@ -11,7 +11,7 @@ Requirements for the initial cross-platform release. Each requirement is user-ce
 
 - [x] **OVLY-01**: User can launch nABrush and keep it available from a macOS menu bar or Windows system tray entry.
 - [x] **OVLY-02**: User can toggle the drawing overlay on or off with a configurable global keyboard shortcut while another app is focused.
-- [ ] **OVLY-03**: User can switch between drawing mode, which captures pointer input, and click-through mode, which passes pointer input to the app underneath.
+- [x] **OVLY-03**: User can switch between drawing mode, which captures pointer input, and click-through mode, which passes pointer input to the app underneath.
 - [x] **OVLY-04**: User can trigger an emergency hide action that removes every overlay without clearing the annotation scene.
 - [ ] **OVLY-05**: User can see the current overlay mode and capture/permission errors through an indicator that is not included in exported images.
 
@@ -105,7 +105,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 |-------------|-------|--------|
 | OVLY-01 | Phase 1 | Complete |
 | OVLY-02 | Phase 1 | Complete |
-| OVLY-03 | Phase 1 | Pending |
+| OVLY-03 | Phase 1 | Complete |
 | OVLY-04 | Phase 1 | Complete |
 | OVLY-05 | Phase 5 | Pending |
 | DISP-01 | Phase 2 | Pending |
@@ -141,4 +141,4 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 ---
 *Requirements defined: 2026-09-09*  
-*Last updated: 2026-09-09 after roadmap creation*
+*Last updated: 2026-09-10 after Phase 1 verification*

@@ -19,11 +19,11 @@ Người dùng có thể đánh dấu rõ ràng bất kỳ nội dung nào trên
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Người dùng có thể bật/tắt lớp vẽ từ tray/menu bar và phím tắt toàn cục — Phase 1.
+- ✓ Người dùng có thể chuyển giữa drawing mode, click-through và emergency hide mà không mất scene — Phase 1.
 
 ### Active
 
-- [ ] Người dùng có thể bật/tắt lớp vẽ bằng phím tắt toàn cục.
 - [ ] Người dùng có thể vẽ trên bất kỳ màn hình, ứng dụng hoặc cửa sổ toàn màn hình nào.
 - [ ] Người dùng có thể sử dụng đầy đủ bộ công cụ chú thích cơ bản.
 - [ ] Người dùng có thể chọn nét vẽ giữ nguyên hoặc tự biến mất.
@@ -60,7 +60,7 @@ Người dùng có thể đánh dấu rõ ràng bất kỳ nội dung nào trên
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Desktop-first trên macOS và Windows | Phù hợp nhu cầu trình chiếu và làm việc trên màn hình thật | — Pending |
-| Overlay điều khiển bằng phím tắt toàn cục | Giảm số lần rời khỏi ứng dụng đang trình bày | — Pending |
+| Overlay điều khiển bằng phím tắt toàn cục | Giảm số lần rời khỏi ứng dụng đang trình bày | ✓ Validated in Phase 1 |
 | Hai chế độ nét vẽ: tự biến mất và giữ nguyên | Phục vụ cả chú thích nhanh lẫn giải thích lâu | — Pending |
 | Xuất ảnh là đầu ra bản đầu | Người dùng cần chia sẻ kết quả ngay, không cần backend lưu phiên | — Pending |
 | Mô hình miễn phí cơ bản + trả phí mở | Cho phép kiểm chứng giá trị trước khi chốt monetization | — Pending |
@@ -83,4 +83,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-09 after initialization*
+*Last updated: 2026-09-10 after Phase 1*
