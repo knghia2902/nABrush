@@ -117,7 +117,8 @@ Plans:
 
 ### Phase 3: Core Annotation Tools
 
-**Goal**: Người dùng có thể tạo các chú thích cơ bản nhanh và mượt trên scene overlay bằng chuột hoặc bàn phím điều khiển.
+**Goal**: As a presenter, I want to create basic annotations quickly and smoothly on the overlay scene using pointer or keyboard controls, so that I can explain on-screen content without leaving the active application.
+**Translated goal**: Người dùng có thể tạo các chú thích cơ bản nhanh và mượt trên scene overlay bằng chuột hoặc bàn phím điều khiển.
 **Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06
@@ -129,7 +130,7 @@ Plans:
   4. User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations, with configurable color and text size.
   5. User can use an eraser to remove one selected annotation without affecting unrelated annotations.
 
-**Plans:** 4/4 plans executed
+**Plans:** 4/7 plans executed; 3 gap-closure plans pending
 Plans:
 **Wave 1**
 
@@ -146,6 +147,18 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 03-04-PLAN.md — Native tool smoke suite and validation traceability
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 03-05-PLAN.md — Gap closure: shape fill controls and per-tool style assertions
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 03-06-PLAN.md — Gap closure: macOS pointer-up path and cross-platform native smoke
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 03-07-PLAN.md — Gap closure: MVP goal contract and auditable validation record
 
 ### Phase 4: Editing & Ink Lifecycle
 
