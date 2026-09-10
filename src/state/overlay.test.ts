@@ -17,7 +17,7 @@ describe("overlay mode reducer", () => {
 
   it("toggles click-through without changing the scene", () => {
     const visible = transition(initialModeState(), "Show");
-    const withScene = addSceneItem(visible, { id: "phase1-sentinel", kind: "stroke" });
+    const withScene = addSceneItem(visible, { id: "phase1-sentinel", kind: "stroke", points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }] });
     const next = transition(withScene, "ToggleClickThrough");
     expect(next.mode).toBe("VisibleClickThrough");
     expect(next.scene).toEqual(withScene.scene);
@@ -27,12 +27,13 @@ describe("overlay mode reducer", () => {
     const withScene = addSceneItem(transition(initialModeState(), "Show"), {
       id: "phase1-sentinel",
       kind: "stroke",
+      points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }],
     });
     const hidden = transition(withScene, "Esc");
     const restored = transition(hidden, "Show");
     expect(hidden.mode).toBe("Hidden");
     expect(restored.mode).toBe("VisibleInteractive");
-    expect(restored.scene).toContainEqual({ id: "phase1-sentinel", kind: "stroke" });
+    expect(restored.scene).toContainEqual({ id: "phase1-sentinel", kind: "stroke", points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }] });
   });
 
   it("is idempotent for repeated current transitions", () => {
