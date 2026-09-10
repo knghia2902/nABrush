@@ -408,6 +408,18 @@ mod tests {
     }
 
     #[test]
+    fn viewport_added_after_show_inherits_interactive_mode_for_bootstrap() {
+        let mut registry = OverlayRegistry::new("webview-scene").unwrap();
+        registry.apply_mode(OverlayMode::VisibleInteractive);
+        registry.reconcile(snapshot(vec![descriptor("main", 0.0, 1.0)])).unwrap();
+
+        let viewport = registry.viewport(&DisplayId::new("main").unwrap()).unwrap();
+        assert_eq!(viewport.mode, OverlayMode::VisibleInteractive);
+        assert!(viewport.visible);
+        assert!(!viewport.click_through);
+    }
+
+    #[test]
     fn scene_store_validates_and_retains_items_when_viewports_change() {
         let mut scene = SceneStore::default();
         scene.commit_scene_item(serde_json::json!({"id":"stroke-1","kind":"stroke","points":[{"x":1.0,"y":2.0}]})).unwrap();

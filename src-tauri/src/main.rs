@@ -16,6 +16,7 @@ use controller::AppController;
 use display::{DisplayDescriptor, DisplayId, DisplayOrientation, DisplayPoint, DisplaySize, DisplaySnapshot};
 use overlay_registry::{OverlayRegistry, SceneSnapshot, SceneStore};
 use serde_json::Value;
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 use tauri::{Manager, Runtime};
@@ -210,6 +211,30 @@ fn get_scene_snapshot(state: tauri::State<'_, Mutex<SceneStore>>) -> SceneSnapsh
     state.lock().expect("scene mutex poisoned").snapshot()
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OverlayBootstrapState {
+    mode: controller::OverlayMode,
+    viewport: Option<display::DisplayViewport>,
+}
+
+#[tauri::command]
+fn get_overlay_bootstrap_state(
+    label: String,
+    controller: tauri::State<'_, AppController>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> OverlayBootstrapState {
+    let mode = controller.snapshot().mode;
+    let viewport = registry
+        .lock()
+        .expect("registry mutex poisoned")
+        .viewports()
+        .values()
+        .find(|viewport| viewport.label == label)
+        .map(|viewport| display::DisplayViewport::from(&viewport.descriptor));
+    OverlayBootstrapState { mode, viewport }
+}
+
 #[tauri::command]
 fn commit_scene_item(
     item: Value,
@@ -248,6 +273,7 @@ fn main() {
             errors::open_system_settings,
             parity_schema::platform_parity_contract,
             get_scene_snapshot,
+            get_overlay_bootstrap_state,
             commit_scene_item,
             test_dispatch_action,
             test_show_settings,

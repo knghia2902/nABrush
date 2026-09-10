@@ -46,8 +46,15 @@ export default function App() {
         setScene(payload.items);
       }
     }).then((unlisten) => { disposeScene = unlisten; });
+    void invoke<{ mode: OverlayMode; viewport?: unknown }>("get_overlay_bootstrap_state", { label: windowLabel })
+      .then((bootstrap) => {
+        setMode(bootstrap.mode);
+        const nextViewport = normalizeDisplayViewport(bootstrap.viewport);
+        if (nextViewport) setViewport(nextViewport);
+      })
+      .catch(() => undefined);
     return () => { disposeMode?.(); disposeViewport?.(); disposeScene?.(); };
-  }, [isSettingsWindow]);
+  }, [isSettingsWindow, windowLabel]);
 
   const commitStroke = (stroke: StrokeSceneItem) => {
     void invoke<SceneSnapshot>("commit_scene_item", { item: stroke })
