@@ -37,22 +37,22 @@ the existing project scripts and tool configuration.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | Failure signal | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|----------------|-------------|--------|
-| 03-01-01 | 01 | 1 | DRAW-01, DRAW-02 | T-03-01-01 | Typed pen/highlighter style and bounded payload; transient preview does not mutate retained scene before valid commit | unit + native | `pnpm exec vitest run src/components/overlay-surface.test.tsx && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && pnpm build` | Renderer/native test failure, malformed payload accepted, duplicate retained, or build exits non-zero | ✅ extend existing/native module | ⬜ pending |
-| 03-01-02 | 01 | 1 | DRAW-01, DRAW-02 | T-03-01-04 | Per-tool style state and scene-excluded toolbar/property chrome preserve click-through boundary | unit + build | `pnpm exec vitest run src/state/annotation.test.ts && pnpm exec vitest run src/components/overlay-surface.test.tsx && pnpm build` | Style-isolation/toolbar assertions fail or frontend build exits non-zero | ✅ Wave 0 creates state test | ⬜ pending |
-| 03-02-01 | 02 | 2 | DRAW-03 | T-03-02-01 | Line/arrow geometry is finite, thresholded and validated; arrow preview/commit remains one item | unit + native | `pnpm exec vitest run src/components/overlay-surface.test.tsx && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry` | Line/arrow geometry, threshold, arrowhead or native validation tests fail | ✅ extend existing/native module | ⬜ pending |
-| 03-02-02 | 02 | 2 | DRAW-04 | T-03-02-01 | Rectangle/ellipse bounds and independent fill/opacity are validated without changing unrelated scene items | unit + native | `pnpm exec vitest run src/components/overlay-surface.test.tsx && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && pnpm build` | Shape rendering/fill, payload validation, retention, or build tests fail | ✅ extend existing/native module | ⬜ pending |
-| 03-03-01 | 03 | 3 | DRAW-05 | T-03-03-01 | Text draft is bounded and Canvas-rendered; Enter/Shift+Enter/Esc and IME handling keep committed scene isolated | unit + build | `pnpm exec vitest run src/state/annotation.test.ts && pnpm exec vitest run src/components/overlay-surface.test.tsx && pnpm build` | Text placement, keyboard lifecycle, IME, hit-test, renderer, or build assertions fail | ✅ extended from Wave 0 | ⬜ pending |
-| 03-03-02 | 03 | 3 | DRAW-06 | T-03-03-04 | Reverse topmost hit-test selects one ID and native erase removes at most one item/no-op | unit + native | `pnpm exec vitest run src/state/annotation.test.ts && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && pnpm build` | Hover/overlap/type-specific hit-test, exactly-one erase, no-op, or command wiring tests fail | ✅ extend state/native module | ⬜ pending |
-| 03-04-01 | 04 | 4 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-04-05 | Native smoke path uses the real toolbar, scene snapshot, text lifecycle, eraser command and global click-through | e2e/manual | `pnpm exec wdio run wdio.conf.ts --suite phase3-tools` | WebDriver startup failure, missing suite, or any tool/mode/text/eraser smoke test fails | ❌ Wave 0 | ⬜ pending |
-| 03-04-02 | 04 | 4 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-04-05 | Validation artifact is traceable to all plan tasks and leaves platform/manual evidence honest | validation | `test -f .planning/phases/03-core-annotation-tools/03-VALIDATION.md && for id in 03-01-01 03-01-02 03-02-01 03-02-02 03-03-01 03-03-02 03-04-01 03-04-02; do rg -q "$id" .planning/phases/03-core-annotation-tools/03-VALIDATION.md || exit 1; done` | Missing task ID or validation file causes non-zero exit | ✅ this artifact | ⬜ pending |
+| 03-01-01 | 01 | 1 | DRAW-01, DRAW-02 | T-03-01 | Typed pen/highlighter style and bounded payload; transient preview does not mutate retained scene before valid commit | unit + native | `pnpm exec vitest run src/components/overlay-surface.test.tsx && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && pnpm build` | Renderer/native test failure, malformed payload accepted, duplicate retained, or build exits non-zero | ✅ extend existing/native module | ⬜ pending |
+| 03-01-02 | 01 | 1 | DRAW-01, DRAW-02 | T-03-01 | Per-tool style state and scene-excluded toolbar/property chrome preserve click-through boundary | unit + build | `pnpm exec vitest run src/state/annotation.test.ts && pnpm build` | Style isolation, toolbar exclusion, or frontend build exits non-zero | ✅ Wave 0 creates state test | ⬜ pending |
+| 03-02-01 | 02 | 2 | DRAW-03 | T-03-02 | Line/arrow geometry is finite, thresholded and validated; arrow preview/commit remains one item | unit + native | `pnpm exec vitest run src/components/overlay-surface.test.tsx && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry` | Line/arrow geometry, threshold, arrowhead or native validation tests fail | ✅ extend existing/native module | ⬜ pending |
+| 03-02-02 | 02 | 2 | DRAW-04 | T-03-03 | Rectangle/ellipse bounds and independent fill/opacity are validated without changing unrelated scene items | unit + native | `pnpm exec vitest run src/components/overlay-surface.test.tsx && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && pnpm build` | Shape rendering/fill, payload validation, retention, or build tests fail | ✅ extend existing/native module | ⬜ pending |
+| 03-03-01 | 03 | 3 | DRAW-05 | T-03-03 | Text draft is bounded and Canvas-rendered; Enter/Shift+Enter/Esc and IME handling keep committed scene isolated | unit + build | `pnpm exec vitest run src/state/annotation.test.ts && pnpm exec vitest run src/components/overlay-surface.test.tsx && pnpm build` | Text placement, keyboard lifecycle, IME, hit-test, renderer, or build assertions fail | ✅ extended from Wave 0 | ⬜ pending |
+| 03-03-02 | 03 | 3 | DRAW-06 | T-03-04 | Reverse topmost hit-test selects one ID and native erase removes at most one item/no-op | unit + native | `pnpm exec vitest run src/state/annotation.test.ts && cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && pnpm build` | Hover/overlap/type-specific hit-test, exactly-one erase, no-op, or command wiring tests fail | ✅ extend state/native module | ⬜ pending |
+| 03-04-01 | 04 | 4 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-05 | Native smoke path uses the real toolbar, scene snapshot, realtime gesture, text lifecycle, eraser command and global click-through | e2e/manual | `pnpm exec wdio run wdio.conf.ts --suite phase3-tools` | WebDriver cannot start, suite is missing, or tool/mode/text/eraser assertions fail; host-specific pointer limitations must be recorded | ✅ suite registered; macOS attempted, Windows not available on this host | ⬜ pending |
+| 03-04-02 | 04 | 4 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-06 | Validation artifact is traceable to all plan tasks and leaves platform/manual evidence honest | validation | `test -f .planning/phases/03-core-annotation-tools/03-VALIDATION.md && for id in 03-01-01 03-01-02 03-02-01 03-02-02 03-03-01 03-03-02 03-04-01 03-04-02; do rg -q "$id" .planning/phases/03-core-annotation-tools/03-VALIDATION.md || exit 1; done && rg -q 'phase3-tools' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q 'Multi-source coverage audit' .planning/phases/03-core-annotation-tools/03-VALIDATION.md` | Missing task ID, suite registration, audit heading, or validation file causes non-zero exit | ✅ this artifact | ⬜ pending |
 
 ## Wave 0 Requirements
 
 - [ ] `src/state/annotation.test.ts` — created/extended by 03-01-02 and 03-03-01 for tool/style state, text draft lifecycle and hit-testing.
 - [ ] `src/components/overlay-surface.test.tsx` — extended by 03-01-01, 03-02-01 and 03-02-02 for all Canvas tools while preserving coordinate/DPR regressions.
 - [ ] `src-tauri/src/overlay_registry.rs` — extended by 03-01-01, 03-02-01, 03-02-02 and 03-03-02 for typed validation, exactly-one erase, no-op/unknown-ID invariants and retained snapshots.
-- [ ] `wdio.conf.ts` plus `tests/e2e/core-annotation-tools.e2e.ts` — created by 03-04-01 for selection, drawing, text keyboard lifecycle, eraser preview and scene-excluded toolbar behavior.
-- [ ] Windows native runner/evidence — 03-04-01 manual matrix; macOS pass is not Windows parity evidence.
+- [ ] `wdio.conf.ts` plus `tests/e2e/core-annotation-tools.e2e.ts` — created by 03-04-01 for selection, realtime gesture checks, text keyboard lifecycle, eraser preview and scene-excluded toolbar behavior.
+- [ ] Windows native runner/evidence — 03-04-01 manual matrix; this host has no Windows runner, and macOS execution is not Windows parity evidence.
 
 ## Manual-Only Verifications
 
@@ -76,21 +76,21 @@ the existing project scripts and tool configuration.
 
 | Source | ID | Feature/decision | Plan | Status |
 |--------|----|------------------|------|--------|
-| GOAL | — | Phase 3 core annotation tools on the shared overlay | 03-01 through 03-04 | COVERED |
-| REQ | DRAW-01 | Freehand strokes with configurable color, opacity and width | 03-01 | COVERED |
-| REQ | DRAW-02 | Semi-transparent highlighter with configurable color, opacity and width | 03-01 | COVERED |
-| REQ | DRAW-03 | Straight lines and arrows with configurable style | 03-02 | COVERED |
-| REQ | DRAW-04 | Rectangles and ellipses with independent fill/opacity style | 03-02 | COVERED |
-| REQ | DRAW-05 | Pre-commit text create/edit/commit/cancel with color and size | 03-03 | COVERED |
-| REQ | DRAW-06 | Eraser removes one annotation without unrelated changes | 03-03 | COVERED |
-| RESEARCH | R-01 | Typed discriminated retained scene and native validation | 03-01, 03-02, 03-03 | COVERED |
-| RESEARCH | R-02 | Pointer gesture transient preview then one valid commit | 03-01, 03-02, 03-03 | COVERED |
-| RESEARCH | R-03 | Canonical coordinates, rotation, negative origin and per-display DPR | 03-01 through 03-04 | COVERED |
-| RESEARCH | R-04 | Whole SceneSnapshot invoke/listen/broadcast synchronization | 03-01, 03-03, 03-04 | COVERED |
-| RESEARCH | R-05 | Scene-excluded text draft and Canvas measured text path | 03-03, 03-04 | COVERED |
-| RESEARCH | R-06 | Reverse topmost type-specific hit-test and one-item erase | 03-03, 03-04 | COVERED |
-| RESEARCH | R-07 | Malformed/oversized payload, duplicate ID and pointer interception mitigations | 03-01, 03-03, 03-04 | COVERED |
-| RESEARCH | R-08 | Existing Canvas/React/Rust/Vitest/WebdriverIO stack and no new dependency | 03-01 through 03-04 | COVERED |
+| GOAL | — | Phase 3 core annotation tools on the shared overlay | 03-01-01 through 03-04-02 | COVERED |
+| REQ | DRAW-01 | Freehand strokes with configurable color, opacity and width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
+| REQ | DRAW-02 | Semi-transparent highlighter with configurable color, opacity and width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
+| REQ | DRAW-03 | Straight lines and arrows with configurable style | 03-02-01, 03-04-01 | COVERED |
+| REQ | DRAW-04 | Rectangles and ellipses with independent fill/opacity style | 03-02-02, 03-04-01 | COVERED |
+| REQ | DRAW-05 | Pre-commit text create/edit/commit/cancel with color and size | 03-03-01, 03-04-01 | COVERED |
+| REQ | DRAW-06 | Eraser removes one annotation without unrelated changes | 03-03-02, 03-04-01 | COVERED |
+| RESEARCH | R-01 | Typed discriminated retained scene and native validation | 03-01-01, 03-02-01, 03-02-02, 03-03-02 | COVERED |
+| RESEARCH | R-02 | Pointer gesture transient preview then one valid commit | 03-01-01, 03-02-01, 03-02-02, 03-04-01 | COVERED |
+| RESEARCH | R-03 | Canonical coordinates, rotation, negative origin and per-display DPR | 03-01-01, 03-02-01, 03-02-02, 03-04-01 | COVERED |
+| RESEARCH | R-04 | Whole SceneSnapshot invoke/listen/broadcast synchronization | 03-01-01, 03-03-02, 03-04-01 | COVERED |
+| RESEARCH | R-05 | Scene-excluded text draft and Canvas measured text path | 03-03-01, 03-04-01 | COVERED |
+| RESEARCH | R-06 | Reverse topmost type-specific hit-test and one-item erase | 03-03-02, 03-04-01 | COVERED |
+| RESEARCH | R-07 | Malformed/oversized payload, duplicate ID and pointer interception mitigations | 03-01-01, 03-03-02, 03-04-01 | COVERED |
+| RESEARCH | R-08 | Existing Canvas/React/Rust/Vitest/WebdriverIO stack and no new dependency | 03-01-01 through 03-04-02 | COVERED |
 | CONTEXT | D-01 | Bottom drawing toolbar, UI chrome, scene-excluded | 03-01-02, 03-04-01 | COVERED |
 | CONTEXT | D-02 | One-click persistent tool selection | 03-01-02, 03-04-01 | COVERED |
 | CONTEXT | D-03 | Compact property popover for active tool | 03-01-02, 03-04-01 | COVERED |
