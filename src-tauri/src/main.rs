@@ -56,6 +56,24 @@ fn test_dispatch_action(
     }
 }
 
+#[tauri::command]
+fn test_show_settings(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppController>,
+) -> Result<String, String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (app, state);
+        return Err("Phase 1 smoke actions are available only in debug builds".into());
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        state.show_settings(&app).map_err(|error| error.to_string())?;
+        Ok("settings".into())
+    }
+}
+
 fn main() {
     let builder = tauri::Builder::default();
 
@@ -73,6 +91,7 @@ fn main() {
             errors::retry_overlay,
             errors::open_system_settings,
             test_dispatch_action,
+            test_show_settings,
         ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
