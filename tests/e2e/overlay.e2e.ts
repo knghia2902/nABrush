@@ -63,6 +63,22 @@ async function showSettingsForTest() {
   });
 }
 
+async function requestCloseSettings() {
+  return browser.execute(async () => {
+    const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: Function } }).__TAURI_INTERNALS__?.invoke;
+    if (!invoke) throw new Error("Tauri invoke bridge is unavailable");
+    return invoke("test_request_close_settings");
+  });
+}
+
+async function injectOverlayInitializationError() {
+  return browser.execute(async () => {
+    const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: Function } }).__TAURI_INTERNALS__?.invoke;
+    if (!invoke) throw new Error("Tauri invoke bridge is unavailable");
+    return invoke("test_inject_overlay_error");
+  });
+}
+
 async function listNativeWindows() {
   try {
     return await browser.tauri.listWindows();
@@ -169,10 +185,47 @@ describe("Phase 1 overlay lifecycle", () => {
     await waitForMode("VisibleInteractive");
     expect(await sceneSnapshot()).toEqual(scene);
   });
+
+  it("supports open-close-open settings recovery without replacing its webview", async () => {
+    await browser.tauri.switchWindow("overlay");
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await showSettingsForTest();
+      await browser.tauri.switchWindow("settings");
+      await browser.waitUntil(async () => (await browser.$('[aria-label="Settings"]').isDisplayed()), {
+        timeout: 15_000,
+        timeoutMsg: `Settings did not open during cycle ${cycle + 1}`,
+      });
+      await expect(await browser.$$('section[aria-label="Settings"] input')).toBeElementsArrayOfSize(5);
+
+      await browser.tauri.switchWindow("overlay");
+      await requestCloseSettings();
+      await browser.tauri.switchWindow("settings");
+      await browser.waitUntil(async () => !(await browser.$('[aria-label="Settings"]').isDisplayed()), {
+        timeout: 15_000,
+        timeoutMsg: `Settings did not hide during cycle ${cycle + 1}`,
+      });
+    }
+    await browser.tauri.switchWindow("overlay");
+    await showSettingsForTest();
+    await browser.tauri.switchWindow("settings");
+    await browser.waitUntil(async () => (await browser.$('[aria-label="Settings"]').isDisplayed()), {
+      timeout: 15_000,
+      timeoutMsg: "Settings did not reopen after close cycles",
+    });
+    await expect(await browser.$$('section[aria-label="Settings"] input')).toBeElementsArrayOfSize(5);
+    await browser.tauri.switchWindow("overlay");
+  });
 });
 
 describe("Phase 1 recovery matrix", () => {
   it("rolls back a conflicting binding and keeps the previous value", async () => {
+    await browser.tauri.switchWindow("overlay");
+    await showSettingsForTest();
+    await browser.tauri.switchWindow("settings");
+    await browser.waitUntil(async () => (await browser.$('[aria-label="Settings"]').isDisplayed()), {
+      timeout: 15_000,
+      timeoutMsg: "Settings did not open for shortcut conflict recovery",
+    });
     const result = await browser.execute(async () => {
       const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: Function } }).__TAURI_INTERNALS__?.invoke;
       if (!invoke) return { supported: false };
@@ -193,13 +246,23 @@ describe("Phase 1 recovery matrix", () => {
       expect(result.conflicted).toBe(true);
       expect(result.restored).toBe(true);
     }
+    await browser.tauri.switchWindow("overlay");
   });
 
   it("exposes retry for a deterministic initialization failure fixture", async () => {
-    const recovery = await browser.execute(() => ({
-      retryAction: "Retry",
-      errorCode: "OverlayInitialization",
-    }));
-    expect(recovery).toEqual({ retryAction: "Retry", errorCode: "OverlayInitialization" });
+    await browser.tauri.switchWindow("overlay");
+    const before = await sceneSnapshot();
+    await injectOverlayInitializationError();
+    await browser.waitUntil(async () => (await browser.$('[data-error-code="OverlayInitialization"]').isDisplayed()), {
+      timeout: 15_000,
+      timeoutMsg: "Typed initialization error did not reach the overlay error badge",
+    });
+    await expect(await browser.$('[data-error-code="OverlayInitialization"] button')).toBeDisplayed();
+    await browser.$('[data-error-code="OverlayInitialization"] button').click();
+    await browser.waitUntil(async () => !(await browser.$('[data-error-code="OverlayInitialization"]').isExisting()), {
+      timeout: 15_000,
+      timeoutMsg: "Retry did not clear the typed initialization error",
+    });
+    expect(await sceneSnapshot()).toEqual(before);
   });
 });
