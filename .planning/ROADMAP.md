@@ -76,12 +76,33 @@ Plans:
 **Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: DISP-01, DISP-02, DISP-03, DISP-04
-**Plans:** 4 plans
+**Plans:** 5 plans
 Plans:
 
 - [ ] 02-01-PLAN.md — Canonical display model, viewport tracer, and topology coalescing
 - [ ] 02-02-PLAN.md — Multi-display registry, asynchronous windows, and shared scene boundary
 - [ ] 02-03-PLAN.md — Per-display canvas transforms and parity feedback UI
+- [ ] 02-05-PLAN.md — Shared shortcut, tool-order, and export-semantics parity contract
+- [ ] 02-04-PLAN.md — Native platform observers, E2E matrix, and support evidence
+
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Canonical display model, viewport tracer, and topology coalescing
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — Multi-display registry, asynchronous windows, and shared scene boundary
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-03-PLAN.md — Per-display canvas transforms and parity feedback UI
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-05-PLAN.md — Shared shortcut, tool-order, and export-semantics parity contract
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 02-04-PLAN.md — Native platform observers, E2E matrix, and support evidence
 **Success Criteria** (what must be TRUE):
 
