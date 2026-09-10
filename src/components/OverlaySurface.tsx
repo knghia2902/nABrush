@@ -7,19 +7,31 @@ import type {
   DisplayOrientation,
   DisplayViewport,
   GeometrySceneItem,
+  EllipseGeometry,
   LineGeometry,
   OverlayMode,
+  RectangleGeometry,
   SceneItem,
   SceneGeometry,
+  ShapeGeometry,
+  ShapeTool,
   StrokePoint,
   StrokeSceneItem,
   StrokeTool,
 } from "../types/overlay";
 import { DEFAULT_PEN_STYLE } from "../types/overlay";
-import { isGeometryDragValid } from "../state/annotation";
+import { isGeometryDragValid, normalizeShapeBounds } from "../state/annotation";
 
 export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
+
+function isShapeTool(tool: AnnotationTool): tool is ShapeTool {
+  return tool === "line" || tool === "arrow" || tool === "rectangle" || tool === "ellipse";
+}
+
+function isStrokeTool(tool: AnnotationTool): tool is StrokeTool {
+  return tool === "pen" || tool === "highlighter";
+}
 
 type CanvasRenderContext = Pick<CanvasRenderingContext2D, "clearRect" | "beginPath" | "moveTo" | "lineTo" | "stroke"> &
   Partial<Pick<CanvasRenderingContext2D, "closePath" | "fill" | "rect" | "ellipse" | "save" | "restore" | "strokeStyle" | "fillStyle" | "lineWidth" | "lineCap" | "lineJoin" | "globalAlpha">> & {
@@ -117,6 +129,15 @@ export function createGeometryItem(
   return { id, kind: "shape", tool, geometry, style };
 }
 
+export function createShapeItem(
+  id: string,
+  tool: "rectangle" | "ellipse",
+  geometry: RectangleGeometry | EllipseGeometry,
+  style: AnnotationStyle,
+): GeometrySceneItem {
+  return { id, kind: "shape", tool, geometry, style };
+}
+
 export function transientSceneItemForGesture(
   samples: readonly PointerSample[],
   rect: SurfaceRect,
@@ -132,14 +153,26 @@ export function transientGeometryForGesture(
   samples: readonly PointerSample[],
   rect: SurfaceRect,
   viewport: DisplayViewport | undefined,
-  tool: "line" | "arrow",
+  tool: ShapeTool,
   style: AnnotationStyle,
 ): GeometrySceneItem | null {
   const points = normalizePointerPath(samples, rect, viewport);
   const start = points[0];
   const end = points.at(-1);
   if (!start || !end || !isGeometryDragValid(start, end)) return null;
-  return createGeometryItem("transient-geometry", tool, { type: "line", start, end }, style);
+  if (tool === "line" || tool === "arrow") {
+    return createGeometryItem("transient-geometry", tool, { type: "line", start, end }, style);
+  }
+  const bounds = normalizeShapeBounds(start, end);
+  if (tool === "rectangle") {
+    return createShapeItem("transient-geometry", tool, { type: "rectangle", ...bounds }, style);
+  }
+  return createShapeItem("transient-geometry", tool, {
+    type: "ellipse",
+    center: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
+    radiusX: bounds.width / 2,
+    radiusY: bounds.height / 2,
+  }, style);
 }
 
 /** Backwards-compatible helper for the Phase 2 renderer tests and call sites. */
@@ -258,6 +291,69 @@ export function drawArrowGeometry(
   context.restore?.();
 }
 
+function drawShapePath(
+  context: CanvasRenderContext,
+  geometry: ShapeGeometry,
+  width: number,
+  height: number,
+  viewport?: DisplayViewport,
+) {
+  if (geometry.type === "rectangle") {
+    const topLeft = viewportPoint({ x: geometry.x, y: geometry.y }, width, height, viewport);
+    if (!viewport || viewport.orientation === "degrees0") {
+      const scaleX = viewport ? 1 : width;
+      const scaleY = viewport ? 1 : height;
+      context.rect?.(topLeft.x, topLeft.y, geometry.width * scaleX, geometry.height * scaleY);
+      return;
+    }
+    const topRight = viewportPoint({ x: geometry.x + geometry.width, y: geometry.y }, width, height, viewport);
+    const bottomRight = viewportPoint({ x: geometry.x + geometry.width, y: geometry.y + geometry.height }, width, height, viewport);
+    const bottomLeft = viewportPoint({ x: geometry.x, y: geometry.y + geometry.height }, width, height, viewport);
+    context.moveTo(topLeft.x, topLeft.y);
+    context.lineTo(topRight.x, topRight.y);
+    context.lineTo(bottomRight.x, bottomRight.y);
+    context.lineTo(bottomLeft.x, bottomLeft.y);
+    context.closePath?.();
+    return;
+  }
+  const center = viewportPoint(geometry.center, width, height, viewport);
+  const scaleX = viewport ? 1 : width;
+  const scaleY = viewport ? 1 : height;
+  const rotated = viewport?.orientation === "degrees90" || viewport?.orientation === "degrees270";
+  const radiusX = geometry.radiusX * (rotated ? scaleY : scaleX);
+  const radiusY = geometry.radiusY * (rotated ? scaleX : scaleY);
+  const rotation = viewport?.orientation === "degrees90" ? Math.PI / 2
+    : viewport?.orientation === "degrees270" ? -Math.PI / 2 : 0;
+  context.ellipse?.(center.x, center.y, radiusX, radiusY, rotation, 0, Math.PI * 2);
+}
+
+export function drawShapeGeometry(
+  context: CanvasRenderContext,
+  item: GeometrySceneItem,
+  width: number,
+  height: number,
+  viewport?: DisplayViewport,
+) {
+  if ((item.tool !== "rectangle" && item.tool !== "ellipse") || (item.geometry.type !== item.tool)) return;
+  context.save?.();
+  context.beginPath();
+  drawShapePath(context, item.geometry as ShapeGeometry, width, height, viewport);
+  if (item.style.fill === "solid") {
+    context.fillStyle = item.style.fillColor;
+    context.globalAlpha = item.style.fillOpacity;
+    context.fill?.();
+  }
+  context.strokeStyle = item.style.color;
+  context.lineWidth = item.style.width;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.globalAlpha = item.style.opacity;
+  context.stroke();
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = "source-over";
+  context.restore?.();
+}
+
 export function drawScene(
   context: CanvasRenderContext,
   scene: readonly SceneItem[],
@@ -271,6 +367,7 @@ export function drawScene(
     if (item.kind === "stroke") drawStroke(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "line") drawLineGeometry(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "arrow") drawArrowGeometry(context, item, width, height, viewport);
+    if (item.kind === "shape" && (item.tool === "rectangle" || item.tool === "ellipse")) drawShapeGeometry(context, item, width, height, viewport);
   }
 }
 
@@ -329,7 +426,7 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   }, []);
 
   useEffect(() => {
-    if (mode !== "VisibleInteractive" || !["pen", "highlighter", "line", "arrow", "rectangle", "ellipse"].includes(activeTool)) cancelGesture();
+    if (mode !== "VisibleInteractive" || (!isStrokeTool(activeTool) && !isShapeTool(activeTool))) cancelGesture();
   }, [activeTool, cancelGesture, mode]);
 
   useEffect(() => {
@@ -346,7 +443,7 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   }, [cancelGesture]);
 
   const beginGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (mode !== "VisibleInteractive" || event.button !== 0 || !["pen", "highlighter", "line", "arrow", "rectangle", "ellipse"].includes(activeTool)) return;
+    if (mode !== "VisibleInteractive" || event.button !== 0 || (!isStrokeTool(activeTool) && !isShapeTool(activeTool))) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
@@ -361,7 +458,7 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
     const rect = event.currentTarget.getBoundingClientRect();
     if (gestureToolRef.current === "pen" || gestureToolRef.current === "highlighter") {
       setTransientSceneItem(transientSceneItemForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current));
-    } else if (gestureToolRef.current === "line" || gestureToolRef.current === "arrow") {
+    } else if (isShapeTool(gestureToolRef.current)) {
       setTransientSceneItem(transientGeometryForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current));
     }
   };
@@ -377,11 +474,16 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
     const points = normalizePointerPath(samples, rect, viewport);
     cancelGesture();
     if (outside) return;
-    if (tool === "line" || tool === "arrow") {
+    if (isShapeTool(tool)) {
       const geometryItem = transientGeometryForGesture(samples, rect, viewport, tool, style);
       if (!geometryItem) return;
       nextItemIdRef.current += 1;
-      onCommitSceneItem(createGeometryItem(`${tool}-${nextItemIdRef.current}`, tool, geometryItem.geometry as LineGeometry, style));
+      const id = `${tool}-${nextItemIdRef.current}`;
+      if (tool === "line" || tool === "arrow") {
+        onCommitSceneItem(createGeometryItem(id, tool, geometryItem.geometry as LineGeometry, style));
+      } else if (tool === "rectangle" || tool === "ellipse") {
+        onCommitSceneItem(createShapeItem(id, tool, geometryItem.geometry as RectangleGeometry | EllipseGeometry, style));
+      }
       return;
     }
     if (tool !== "pen" && tool !== "highlighter") return;

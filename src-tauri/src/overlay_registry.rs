@@ -98,7 +98,9 @@ pub enum SceneGeometry {
     },
     Ellipse {
         center: ScenePoint,
+        #[serde(rename = "radiusX")]
         radius_x: f64,
+        #[serde(rename = "radiusY")]
         radius_y: f64,
     },
 }
@@ -452,13 +454,13 @@ fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), R
         ) => {
             validate_coordinate(*x, "geometry.x")?;
             validate_coordinate(*y, "geometry.y")?;
-            validate_coordinate(*x + *width, "geometry.right")?;
-            validate_coordinate(*y + *height, "geometry.bottom")?;
-            if !width.is_finite() || !height.is_finite() || *width < 0.0 || *height < 0.0 {
+            if !width.is_finite() || !height.is_finite() || *width <= 0.0 || *height <= 0.0 {
                 return Err(RegistryError::InvalidSceneItem(
                     "rectangle dimensions are invalid".into(),
                 ));
             }
+            validate_coordinate(*x + *width, "geometry.right")?;
+            validate_coordinate(*y + *height, "geometry.bottom")?;
         }
         (
             ShapeTool::Ellipse,
@@ -469,7 +471,7 @@ fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), R
             },
         ) => {
             validate_point(center, "geometry.center")?;
-            if !radius_x.is_finite() || !radius_y.is_finite() || *radius_x < 0.0 || *radius_y < 0.0
+            if !radius_x.is_finite() || !radius_y.is_finite() || *radius_x <= 0.0 || *radius_y <= 0.0
             {
                 return Err(RegistryError::InvalidSceneItem(
                     "ellipse radii are invalid".into(),
@@ -1068,5 +1070,58 @@ mod tests {
             assert_eq!(scene.snapshot(), before);
         }
         assert_eq!(scene.commit_scene_item(valid).unwrap(), before);
+    }
+
+    #[test]
+    fn scene_store_accepts_independent_rectangle_and_ellipse_styles() {
+        let mut scene = SceneStore::default();
+        let rectangle = serde_json::json!({
+            "id": "rectangle-1",
+            "kind": "shape",
+            "tool": "rectangle",
+            "geometry": {"type":"rectangle","x":-200.0,"y":40.0,"width":500.0,"height":300.0},
+            "style": {"color":"#1d4ed8","opacity":0.8,"width":2.0,"fill":"solid","fillColor":"#bfdbfe","fillOpacity":0.4,"textSize":24.0}
+        });
+        let ellipse = serde_json::json!({
+            "id": "ellipse-1",
+            "kind": "shape",
+            "tool": "ellipse",
+            "geometry": {"type":"ellipse","center":{"x":600.0,"y":300.0},"radiusX":120.0,"radiusY":80.0},
+            "style": {"color":"#15803d","opacity":0.6,"width":3.0,"fill":"solid","fillColor":"#bbf7d0","fillOpacity":0.15,"textSize":24.0}
+        });
+
+        scene.commit_scene_item(rectangle).unwrap();
+        let snapshot = scene.commit_scene_item(ellipse).unwrap();
+        assert_eq!(snapshot.items.len(), 2);
+        assert!(matches!(snapshot.items[0], SceneItem::Shape { tool: ShapeTool::Rectangle, geometry: SceneGeometry::Rectangle { width: 500.0, height: 300.0, .. }, .. }));
+        assert!(matches!(snapshot.items[1], SceneItem::Shape { tool: ShapeTool::Ellipse, geometry: SceneGeometry::Ellipse { radius_x: 120.0, radius_y: 80.0, .. }, .. }));
+        if let SceneItem::Shape { style: first, .. } = &snapshot.items[0] {
+            if let SceneItem::Shape { style: second, .. } = &snapshot.items[1] {
+                assert_ne!(first.fill_color, second.fill_color);
+                assert_ne!(first.fill_opacity, second.fill_opacity);
+            }
+        }
+    }
+
+    #[test]
+    fn scene_store_rejects_invalid_shape_bounds_or_style_without_mutation() {
+        let mut scene = SceneStore::default();
+        scene
+            .commit_scene_item(serde_json::json!({
+                "id":"stable-shape","kind":"shape","tool":"rectangle",
+                "geometry":{"type":"rectangle","x":0.0,"y":0.0,"width":20.0,"height":20.0},
+                "style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}
+            }))
+            .unwrap();
+        let before = scene.snapshot();
+        for invalid in [
+            serde_json::json!({"id":"bad","kind":"shape","tool":"rectangle","geometry":{"type":"rectangle","x":0.0,"y":0.0,"width":0.0,"height":20.0},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+            serde_json::json!({"id":"bad","kind":"shape","tool":"ellipse","geometry":{"type":"ellipse","center":{"x":0.0,"y":0.0},"radiusX":10.0,"radiusY":0.0},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+            serde_json::json!({"id":"bad","kind":"shape","tool":"rectangle","geometry":{"type":"rectangle","x":0.0,"y":0.0,"width":20.0,"height":20.0},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"solid","fillColor":"#fff","fillOpacity":1.5,"textSize":24.0}}),
+            serde_json::json!({"id":"bad","kind":"shape","tool":"ellipse","geometry":{"type":"ellipse","center":{"x":0.0,"y":0.0},"radiusX":10.0,"radiusY":10.0,"extra":true},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+        ] {
+            assert!(scene.commit_scene_item(invalid).is_err());
+            assert_eq!(scene.snapshot(), before);
+        }
     }
 }

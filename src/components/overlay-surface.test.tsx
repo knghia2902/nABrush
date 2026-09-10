@@ -6,7 +6,9 @@ import {
   canonicalToViewport,
   canvasPointerEvents,
   createGeometryItem,
+  createShapeItem,
   createStroke,
+  drawShapeGeometry,
   drawScene,
   normalizePointerPath,
   transientGeometryForGesture,
@@ -179,6 +181,65 @@ describe("OverlaySurface scene helpers", () => {
     drawScene(context, [item], 200, 100);
     expect(calls).toEqual(["clear", "begin", "move", "line", "stroke", "save", "begin", "move", "line", "line", "close", "fill", "restore"]);
     expect(context.fillStyle).toBe("#16a34a");
+    expect(context.globalAlpha).toBe(1);
+  });
+
+  it("normalizes reverse drags into canonical rectangle bounds and ellipse radii", () => {
+    const style = { color: "#334155", opacity: 0.92, width: 2, fill: "solid" as const, fillColor: "#f97316", fillOpacity: 0.3, textSize: 24 };
+    const rect = { left: 0, top: 0, width: 100, height: 100 };
+    const logicalViewport = { id: "test", origin: { x: 0, y: 0 }, logicalSize: { width: 100, height: 100 }, scaleFactor: 1, orientation: "degrees0" as const };
+    const rectangle = transientGeometryForGesture(
+      [{ clientX: 80, clientY: 70 }, { clientX: 20, clientY: 10 }], rect, logicalViewport, "rectangle", style,
+    );
+    const ellipse = transientGeometryForGesture(
+      [{ clientX: 80, clientY: 70 }, { clientX: 20, clientY: 10 }], rect, logicalViewport, "ellipse", style,
+    );
+    expect(rectangle?.geometry).toEqual({ type: "rectangle", x: 20, y: 10, width: 60, height: 60 });
+    expect(ellipse?.geometry).toEqual({ type: "ellipse", center: { x: 50, y: 40 }, radiusX: 30, radiusY: 30 });
+    expect(rectangle?.style).toBe(style);
+    expect(ellipse?.style).toBe(style);
+  });
+
+  it("rejects shape drags below the same logical threshold as line and arrow", () => {
+    const style = { color: "#334155", opacity: 0.92, width: 2, fill: "none" as const, fillColor: "#334155", fillOpacity: 0.18, textSize: 24 };
+    const logicalViewport = { id: "test", origin: { x: 0, y: 0 }, logicalSize: { width: 100, height: 100 }, scaleFactor: 1, orientation: "degrees0" as const };
+    expect(transientGeometryForGesture(
+      [{ clientX: 10, clientY: 10 }, { clientX: 13, clientY: 10 }],
+      { left: 0, top: 0, width: 100, height: 100 },
+      logicalViewport,
+      "ellipse",
+      style,
+    )).toBeNull();
+  });
+
+  it("renders independent rectangle and ellipse fill/stroke opacity in a restored context", () => {
+    const calls: string[] = [];
+    const context = {
+      clearRect: () => calls.push("clear"),
+      beginPath: () => calls.push("begin"),
+      moveTo: () => calls.push("move"),
+      lineTo: () => calls.push("line"),
+      rect: () => calls.push("rect"),
+      ellipse: () => calls.push("ellipse"),
+      stroke: () => calls.push("stroke"),
+      fill: () => calls.push("fill"),
+      save: () => calls.push("save"),
+      restore: () => calls.push("restore"),
+      closePath: () => calls.push("close"),
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 0,
+      globalAlpha: 1,
+      globalCompositeOperation: "source-over",
+    };
+    const rectangle = createShapeItem("rectangle-1", "rectangle", { type: "rectangle", x: 0.1, y: 0.2, width: 0.4, height: 0.3 }, {
+      color: "#1d4ed8", opacity: 0.8, width: 2, fill: "solid", fillColor: "#bfdbfe", fillOpacity: 0.4, textSize: 24,
+    });
+    const ellipse = createShapeItem("ellipse-1", "ellipse", { type: "ellipse", center: { x: 0.7, y: 0.5 }, radiusX: 0.1, radiusY: 0.2 }, {
+      color: "#15803d", opacity: 0.6, width: 3, fill: "solid", fillColor: "#bbf7d0", fillOpacity: 0.15, textSize: 24,
+    });
+    drawScene(context, [rectangle, ellipse], 100, 100);
+    expect(calls).toEqual(["clear", "save", "begin", "rect", "fill", "stroke", "restore", "save", "begin", "ellipse", "fill", "stroke", "restore"]);
     expect(context.globalAlpha).toBe(1);
   });
 
