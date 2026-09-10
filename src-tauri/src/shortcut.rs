@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Mutex};
 use std::str::FromStr;
 use tauri::{AppHandle, Manager, Runtime, State};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::controller::{AppController, ShortcutAction};
 
@@ -95,9 +95,20 @@ fn register_binding<R: Runtime>(app: &AppHandle<R>, action: BindingAction, accel
 pub fn register_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let bindings = app.state::<ShortcutRegistry>().bindings();
     for (action, accelerator) in bindings {
+        // The default Visibility binding is installed by the plugin builder so
+        // it is available during early startup. Rebindings still unregister
+        // that tracked shortcut and register the replacement below.
+        if action == BindingAction::Visibility {
+            continue;
+        }
         register_binding(app, action, &accelerator)?;
     }
     Ok(())
+}
+
+pub fn default_visibility_shortcut() -> Shortcut {
+    let modifier = if cfg!(target_os = "macos") { Modifiers::SUPER } else { Modifiers::CONTROL };
+    Shortcut::new(Some(modifier | Modifiers::SHIFT), Code::KeyA)
 }
 
 pub fn rebind_runtime<R: Runtime>(

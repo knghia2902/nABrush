@@ -123,6 +123,15 @@ fn main() {
         ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcuts([shortcut::default_visibility_shortcut()])
+                .expect("default visibility shortcut is valid")
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Err(error) = app.state::<AppController>().dispatch_action(app, controller::ShortcutAction::ToggleVisibility) {
+                            errors::report_controller_failure(app, "visibility-shortcut", &error);
+                        }
+                    }
+                })
                 .build(),
         )
         .setup(|app| Ok(setup(app)?))
