@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use tauri::{AppHandle, Emitter, Manager, Position, Runtime, Size, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, Position, Runtime, Size, WebviewUrl, WebviewWindowBuilder,
+};
 
 /// The fixed bootstrap label remains configured in `tauri.conf.json`; every
 /// additional viewport receives a Rust-generated label derived from its
@@ -18,17 +20,26 @@ pub enum RegistryError {
     InvalidDisplayIdentity,
     DuplicateNativeLabel,
     InvalidSceneItem(String),
-    NativeOperation { display_id: DisplayId, detail: String },
+    NativeOperation {
+        display_id: DisplayId,
+        detail: String,
+    },
 }
 
 impl fmt::Display for RegistryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidDisplayIdentity => f.write_str("display identity is invalid"),
-            Self::DuplicateNativeLabel => f.write_str("display identities produced a duplicate native label"),
+            Self::DuplicateNativeLabel => {
+                f.write_str("display identities produced a duplicate native label")
+            }
             Self::InvalidSceneItem(reason) => write!(f, "scene item is invalid: {reason}"),
             Self::NativeOperation { display_id, detail } => {
-                write!(f, "native viewport {} failed: {detail}", display_id.as_str())
+                write!(
+                    f,
+                    "native viewport {} failed: {detail}",
+                    display_id.as_str()
+                )
             }
         }
     }
@@ -60,6 +71,12 @@ pub enum ShapeTool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TextTool {
+    Text,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScenePoint {
     pub x: f64,
@@ -69,9 +86,21 @@ pub struct ScenePoint {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum SceneGeometry {
-    Line { start: ScenePoint, end: ScenePoint },
-    Rectangle { x: f64, y: f64, width: f64, height: f64 },
-    Ellipse { center: ScenePoint, radius_x: f64, radius_y: f64 },
+    Line {
+        start: ScenePoint,
+        end: ScenePoint,
+    },
+    Rectangle {
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    },
+    Ellipse {
+        center: ScenePoint,
+        radius_x: f64,
+        radius_y: f64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -118,7 +147,7 @@ pub enum SceneItem {
     #[serde(rename = "text")]
     Text {
         id: String,
-        tool: String,
+        tool: TextTool,
         anchor: ScenePoint,
         text: String,
         style: AnnotationStyle,
@@ -147,7 +176,9 @@ pub struct SceneStore {
 }
 
 impl Default for SceneStore {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SceneStore {
@@ -163,15 +194,25 @@ impl SceneStore {
     pub fn with_id(scene_id: impl Into<String>) -> Result<Self, RegistryError> {
         let scene_id = scene_id.into();
         if scene_id.trim().is_empty() || scene_id.len() > 256 {
-            return Err(RegistryError::InvalidSceneItem("scene id is empty or too long".into()));
+            return Err(RegistryError::InvalidSceneItem(
+                "scene id is empty or too long".into(),
+            ));
         }
-        Ok(Self { scene_id, items: Vec::new() })
+        Ok(Self {
+            scene_id,
+            items: Vec::new(),
+        })
     }
 
-    pub fn scene_id(&self) -> &str { &self.scene_id }
+    pub fn scene_id(&self) -> &str {
+        &self.scene_id
+    }
 
     pub fn snapshot(&self) -> SceneSnapshot {
-        SceneSnapshot { scene_id: self.scene_id.clone(), items: self.items.clone() }
+        SceneSnapshot {
+            scene_id: self.scene_id.clone(),
+            items: self.items.clone(),
+        }
     }
 
     pub fn commit_scene_item(&mut self, item: Value) -> Result<SceneSnapshot, RegistryError> {
@@ -191,46 +232,162 @@ impl SceneStore {
         Ok(self.snapshot())
     }
 
-    pub fn clear(&mut self) { self.items.clear(); }
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
 }
 
 fn normalize_scene_item(mut item: Value) -> Result<SceneItem, RegistryError> {
-    let object = item.as_object_mut().ok_or_else(|| RegistryError::InvalidSceneItem("item must be an object".into()))?;
-    let kind = object.get("kind").and_then(Value::as_str).ok_or_else(|| RegistryError::InvalidSceneItem("item kind must be a string".into()))?.to_owned();
+    let object = item
+        .as_object_mut()
+        .ok_or_else(|| RegistryError::InvalidSceneItem("item must be an object".into()))?;
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RegistryError::InvalidSceneItem("item kind must be a string".into()))?
+        .to_owned();
     if kind == "stroke" {
-        object.entry("tool").or_insert_with(|| Value::String("pen".into()));
-        object.entry("style").or_insert_with(|| serde_json::to_value(default_pen_style()).expect("default style serializes"));
+        object
+            .entry("tool")
+            .or_insert_with(|| Value::String("pen".into()));
+        object.entry("style").or_insert_with(|| {
+            serde_json::to_value(default_pen_style()).expect("default style serializes")
+        });
     }
     validate_scene_keys(object, &kind)?;
-    let parsed = serde_json::from_value::<SceneItem>(item)
-        .map_err(|error| RegistryError::InvalidSceneItem(format!("typed payload is invalid: {error}")))?;
+    let parsed = serde_json::from_value::<SceneItem>(item).map_err(|error| {
+        RegistryError::InvalidSceneItem(format!("typed payload is invalid: {error}"))
+    })?;
     validate_typed_scene_item(&parsed)?;
     Ok(parsed)
 }
 
-fn validate_scene_keys(object: &serde_json::Map<String, Value>, kind: &str) -> Result<(), RegistryError> {
+fn validate_scene_keys(
+    object: &serde_json::Map<String, Value>,
+    kind: &str,
+) -> Result<(), RegistryError> {
     let allowed = match kind {
         "stroke" => ["id", "kind", "tool", "points", "style"].as_slice(),
         "shape" => ["id", "kind", "tool", "geometry", "style"].as_slice(),
         "text" => ["id", "kind", "tool", "anchor", "text", "style"].as_slice(),
-        _ => return Err(RegistryError::InvalidSceneItem("item kind is unsupported".into())),
+        _ => {
+            return Err(RegistryError::InvalidSceneItem(
+                "item kind is unsupported".into(),
+            ))
+        }
     };
     if let Some(key) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
-        return Err(RegistryError::InvalidSceneItem(format!("unknown field: {key}")));
+        return Err(RegistryError::InvalidSceneItem(format!(
+            "unknown field: {key}"
+        )));
+    }
+    validate_style_object(object.get("style"))?;
+    match kind {
+        "stroke" => {
+            let points = object
+                .get("points")
+                .and_then(Value::as_array)
+                .ok_or_else(|| RegistryError::InvalidSceneItem("points must be an array".into()))?;
+            for point in points {
+                validate_point_object(point)?;
+            }
+        }
+        "shape" => validate_geometry_object(object.get("geometry"))?,
+        "text" => validate_point_object(
+            object
+                .get("anchor")
+                .ok_or_else(|| RegistryError::InvalidSceneItem("text anchor is missing".into()))?,
+        )?,
+        _ => {}
+    }
+    Ok(())
+}
+
+fn validate_object_keys(
+    object: &serde_json::Map<String, Value>,
+    allowed: &[&str],
+) -> Result<(), RegistryError> {
+    if let Some(key) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
+        return Err(RegistryError::InvalidSceneItem(format!(
+            "unknown nested field: {key}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_style_object(value: Option<&Value>) -> Result<(), RegistryError> {
+    let object = value
+        .and_then(Value::as_object)
+        .ok_or_else(|| RegistryError::InvalidSceneItem("style must be an object".into()))?;
+    validate_object_keys(
+        object,
+        &[
+            "color",
+            "opacity",
+            "width",
+            "fill",
+            "fillColor",
+            "fillOpacity",
+            "textSize",
+        ],
+    )
+}
+
+fn validate_point_object(value: &Value) -> Result<(), RegistryError> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| RegistryError::InvalidSceneItem("point must be an object".into()))?;
+    validate_object_keys(object, &["x", "y"])
+}
+
+fn validate_geometry_object(value: Option<&Value>) -> Result<(), RegistryError> {
+    let object = value
+        .and_then(Value::as_object)
+        .ok_or_else(|| RegistryError::InvalidSceneItem("geometry must be an object".into()))?;
+    match object.get("type").and_then(Value::as_str) {
+        Some("line") => {
+            validate_object_keys(object, &["type", "start", "end"])?;
+            validate_point_object(
+                object.get("start").ok_or_else(|| {
+                    RegistryError::InvalidSceneItem("line start is missing".into())
+                })?,
+            )?;
+            validate_point_object(
+                object
+                    .get("end")
+                    .ok_or_else(|| RegistryError::InvalidSceneItem("line end is missing".into()))?,
+            )?;
+        }
+        Some("rectangle") => validate_object_keys(object, &["type", "x", "y", "width", "height"])?,
+        Some("ellipse") => {
+            validate_object_keys(object, &["type", "center", "radiusX", "radiusY"])?;
+            validate_point_object(object.get("center").ok_or_else(|| {
+                RegistryError::InvalidSceneItem("ellipse center is missing".into())
+            })?)?;
+        }
+        _ => {
+            return Err(RegistryError::InvalidSceneItem(
+                "geometry type is unsupported".into(),
+            ))
+        }
     }
     Ok(())
 }
 
 fn validate_id(id: &str) -> Result<(), RegistryError> {
     if id.trim().is_empty() || id.len() > 256 {
-        return Err(RegistryError::InvalidSceneItem("item id is empty or too long".into()));
+        return Err(RegistryError::InvalidSceneItem(
+            "item id is empty or too long".into(),
+        ));
     }
     Ok(())
 }
 
 fn validate_coordinate(value: f64, field: &str) -> Result<(), RegistryError> {
     if !value.is_finite() || !(-1_000_000.0..=1_000_000.0).contains(&value) {
-        return Err(RegistryError::InvalidSceneItem(format!("{field} is outside the finite canonical range")));
+        return Err(RegistryError::InvalidSceneItem(format!(
+            "{field} is outside the finite canonical range"
+        )));
     }
     Ok(())
 }
@@ -241,20 +398,34 @@ fn validate_point(point: &ScenePoint, field: &str) -> Result<(), RegistryError> 
 }
 
 fn validate_style(style: &AnnotationStyle) -> Result<(), RegistryError> {
-    if style.color.trim().is_empty() || style.color.len() > 64 || style.fill_color.trim().is_empty() || style.fill_color.len() > 64 {
-        return Err(RegistryError::InvalidSceneItem("style color is empty or too long".into()));
+    if style.color.trim().is_empty()
+        || style.color.len() > 64
+        || style.fill_color.trim().is_empty()
+        || style.fill_color.len() > 64
+    {
+        return Err(RegistryError::InvalidSceneItem(
+            "style color is empty or too long".into(),
+        ));
     }
     if !style.opacity.is_finite() || !(0.0..=1.0).contains(&style.opacity) {
-        return Err(RegistryError::InvalidSceneItem("style opacity is outside [0, 1]".into()));
+        return Err(RegistryError::InvalidSceneItem(
+            "style opacity is outside [0, 1]".into(),
+        ));
     }
     if !style.width.is_finite() || !(0.5..=128.0).contains(&style.width) {
-        return Err(RegistryError::InvalidSceneItem("style width is outside [0.5, 128]".into()));
+        return Err(RegistryError::InvalidSceneItem(
+            "style width is outside [0.5, 128]".into(),
+        ));
     }
     if !style.fill_opacity.is_finite() || !(0.0..=1.0).contains(&style.fill_opacity) {
-        return Err(RegistryError::InvalidSceneItem("style fill opacity is outside [0, 1]".into()));
+        return Err(RegistryError::InvalidSceneItem(
+            "style fill opacity is outside [0, 1]".into(),
+        ));
     }
     if !style.text_size.is_finite() || !(8.0..=256.0).contains(&style.text_size) {
-        return Err(RegistryError::InvalidSceneItem("style text size is outside [8, 256]".into()));
+        return Err(RegistryError::InvalidSceneItem(
+            "style text size is outside [8, 256]".into(),
+        ));
     }
     Ok(())
 }
@@ -265,26 +436,50 @@ fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), R
             validate_point(start, "geometry.start")?;
             validate_point(end, "geometry.end")?;
         }
-        (ShapeTool::Rectangle, SceneGeometry::Rectangle { x, y, width, height }) => {
+        (
+            ShapeTool::Rectangle,
+            SceneGeometry::Rectangle {
+                x,
+                y,
+                width,
+                height,
+            },
+        ) => {
             validate_coordinate(*x, "geometry.x")?;
             validate_coordinate(*y, "geometry.y")?;
             validate_coordinate(*x + *width, "geometry.right")?;
             validate_coordinate(*y + *height, "geometry.bottom")?;
             if !width.is_finite() || !height.is_finite() || *width < 0.0 || *height < 0.0 {
-                return Err(RegistryError::InvalidSceneItem("rectangle dimensions are invalid".into()));
+                return Err(RegistryError::InvalidSceneItem(
+                    "rectangle dimensions are invalid".into(),
+                ));
             }
         }
-        (ShapeTool::Ellipse, SceneGeometry::Ellipse { center, radius_x, radius_y }) => {
+        (
+            ShapeTool::Ellipse,
+            SceneGeometry::Ellipse {
+                center,
+                radius_x,
+                radius_y,
+            },
+        ) => {
             validate_point(center, "geometry.center")?;
-            if !radius_x.is_finite() || !radius_y.is_finite() || *radius_x < 0.0 || *radius_y < 0.0 {
-                return Err(RegistryError::InvalidSceneItem("ellipse radii are invalid".into()));
+            if !radius_x.is_finite() || !radius_y.is_finite() || *radius_x < 0.0 || *radius_y < 0.0
+            {
+                return Err(RegistryError::InvalidSceneItem(
+                    "ellipse radii are invalid".into(),
+                ));
             }
             validate_coordinate(center.x - *radius_x, "geometry.left")?;
             validate_coordinate(center.x + *radius_x, "geometry.right")?;
             validate_coordinate(center.y - *radius_y, "geometry.top")?;
             validate_coordinate(center.y + *radius_y, "geometry.bottom")?;
         }
-        _ => return Err(RegistryError::InvalidSceneItem("geometry does not match tool".into())),
+        _ => {
+            return Err(RegistryError::InvalidSceneItem(
+                "geometry does not match tool".into(),
+            ))
+        }
     }
     Ok(())
 }
@@ -292,22 +487,50 @@ fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), R
 fn validate_typed_scene_item(item: &SceneItem) -> Result<(), RegistryError> {
     validate_id(item.id())?;
     match item {
-        SceneItem::Stroke { tool, points, style, .. } => {
+        SceneItem::Stroke {
+            tool,
+            points,
+            style,
+            ..
+        } => {
             if points.is_empty() || points.len() > 4_096 {
-                return Err(RegistryError::InvalidSceneItem("stroke points are empty or too long".into()));
+                return Err(RegistryError::InvalidSceneItem(
+                    "stroke points are empty or too long".into(),
+                ));
             }
-            for point in points { validate_point(point, "points")?; }
+            for point in points {
+                validate_point(point, "points")?;
+            }
             let _ = tool;
             validate_style(style)
         }
-        SceneItem::Shape { tool, geometry, style, .. } => {
+        SceneItem::Shape {
+            tool,
+            geometry,
+            style,
+            ..
+        } => {
             validate_geometry(tool, geometry)?;
             validate_style(style)
         }
-        SceneItem::Text { tool, anchor, text, style, .. } => {
-            if tool != "text" { return Err(RegistryError::InvalidSceneItem("text tool is unsupported".into())); }
+        SceneItem::Text {
+            tool,
+            anchor,
+            text,
+            style,
+            ..
+        } => {
+            if !matches!(tool, TextTool::Text) {
+                return Err(RegistryError::InvalidSceneItem(
+                    "text tool is unsupported".into(),
+                ));
+            }
             validate_point(anchor, "anchor")?;
-            if text.is_empty() || text.len() > 4_096 { return Err(RegistryError::InvalidSceneItem("text is empty or too long".into())); }
+            if text.is_empty() || text.len() > 4_096 {
+                return Err(RegistryError::InvalidSceneItem(
+                    "text is empty or too long".into(),
+                ));
+            }
             validate_style(style)
         }
     }
@@ -326,7 +549,12 @@ pub struct OverlayViewport {
 }
 
 impl OverlayViewport {
-    fn new(descriptor: DisplayDescriptor, scene_ref: &str, label: String, mode: OverlayMode) -> Self {
+    fn new(
+        descriptor: DisplayDescriptor,
+        scene_ref: &str,
+        label: String,
+        mode: OverlayMode,
+    ) -> Self {
         let click_through = mode == OverlayMode::VisibleClickThrough;
         Self {
             id: descriptor.id.clone(),
@@ -358,14 +586,18 @@ pub struct OverlayRegistry {
 }
 
 impl Default for OverlayRegistry {
-    fn default() -> Self { Self::new("webview-scene").expect("default scene id is valid") }
+    fn default() -> Self {
+        Self::new("webview-scene").expect("default scene id is valid")
+    }
 }
 
 impl OverlayRegistry {
     pub fn new(scene_ref: impl Into<String>) -> Result<Self, RegistryError> {
         let scene_ref = scene_ref.into();
         if scene_ref.trim().is_empty() || scene_ref.len() > 256 {
-            return Err(RegistryError::InvalidSceneItem("scene id is empty or too long".into()));
+            return Err(RegistryError::InvalidSceneItem(
+                "scene id is empty or too long".into(),
+            ));
         }
         Ok(Self {
             viewports: BTreeMap::new(),
@@ -376,15 +608,32 @@ impl OverlayRegistry {
         })
     }
 
-    pub fn scene_ref(&self) -> &str { &self.scene_ref }
-    pub fn mode(&self) -> OverlayMode { self.mode }
-    pub fn click_through(&self) -> bool { self.click_through }
-    pub fn viewports(&self) -> &BTreeMap<DisplayId, OverlayViewport> { &self.viewports }
-    pub fn viewport(&self, id: &DisplayId) -> Option<&OverlayViewport> { self.viewports.get(id) }
-    pub fn last_snapshot(&self) -> &DisplaySnapshot { &self.last_snapshot }
+    pub fn scene_ref(&self) -> &str {
+        &self.scene_ref
+    }
+    pub fn mode(&self) -> OverlayMode {
+        self.mode
+    }
+    pub fn click_through(&self) -> bool {
+        self.click_through
+    }
+    pub fn viewports(&self) -> &BTreeMap<DisplayId, OverlayViewport> {
+        &self.viewports
+    }
+    pub fn viewport(&self, id: &DisplayId) -> Option<&OverlayViewport> {
+        self.viewports.get(id)
+    }
+    pub fn last_snapshot(&self) -> &DisplaySnapshot {
+        &self.last_snapshot
+    }
 
-    pub fn reconcile(&mut self, snapshot: DisplaySnapshot) -> Result<RegistryChanges, RegistryError> {
-        snapshot.validate().map_err(|_| RegistryError::InvalidDisplayIdentity)?;
+    pub fn reconcile(
+        &mut self,
+        snapshot: DisplaySnapshot,
+    ) -> Result<RegistryChanges, RegistryError> {
+        snapshot
+            .validate()
+            .map_err(|_| RegistryError::InvalidDisplayIdentity)?;
         let mut labels = BTreeSet::new();
         for id in snapshot.displays.keys() {
             if !labels.insert(generated_overlay_label(id)) {
@@ -392,7 +641,13 @@ impl OverlayRegistry {
             }
         }
         let mut changes = RegistryChanges::default();
-        for id in self.viewports.keys().filter(|id| !snapshot.displays.contains_key(*id)).cloned().collect::<Vec<_>>() {
+        for id in self
+            .viewports
+            .keys()
+            .filter(|id| !snapshot.displays.contains_key(*id))
+            .cloned()
+            .collect::<Vec<_>>()
+        {
             self.viewports.remove(&id);
             changes.removed.push(id);
         }
@@ -406,7 +661,10 @@ impl OverlayRegistry {
                 Some(_) => {}
                 None => {
                     let label = generated_overlay_label(id);
-                    self.viewports.insert(id.clone(), OverlayViewport::new(descriptor.clone(), &self.scene_ref, label, self.mode));
+                    self.viewports.insert(
+                        id.clone(),
+                        OverlayViewport::new(descriptor.clone(), &self.scene_ref, label, self.mode),
+                    );
                     changes.added.push(id.clone());
                 }
             }
@@ -436,7 +694,12 @@ impl OverlayRegistry {
         self.apply_mode(mode);
         for (id, viewport) in &self.viewports {
             let adapter = adapters.entry(id.clone()).or_default();
-            adapter.update_geometry(&viewport.descriptor).map_err(|detail| RegistryError::NativeOperation { display_id: id.clone(), detail })?;
+            adapter
+                .update_geometry(&viewport.descriptor)
+                .map_err(|detail| RegistryError::NativeOperation {
+                    display_id: id.clone(),
+                    detail,
+                })?;
             match mode {
                 OverlayMode::Hidden => adapter.hide(),
                 OverlayMode::VisibleInteractive => adapter.show_interactive(),
@@ -464,7 +727,9 @@ impl OverlayRegistry {
         let mode = self.mode;
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
-            if let Err((display_id, detail)) = apply_native_viewports(&app, viewports, removed, mode).await {
+            if let Err((display_id, detail)) =
+                apply_native_viewports(&app, viewports, removed, mode).await
+            {
                 let state = app.state::<ErrorStore>();
                 let error = display_topology_error(display_id.as_str(), &detail);
                 if let Err(publish_error) = state.publish(&app, Some(error)) {
@@ -492,7 +757,9 @@ async fn apply_native_viewports<R: Runtime>(
 ) -> Result<(), (DisplayId, String)> {
     for id in removed {
         if let Some(window) = app.get_webview_window(&generated_overlay_label(&id)) {
-            window.destroy().map_err(|error| (id.clone(), error.to_string()))?;
+            window
+                .destroy()
+                .map_err(|error| (id.clone(), error.to_string()))?;
         }
     }
     for viewport in viewports {
@@ -510,7 +777,10 @@ async fn apply_native_viewports<R: Runtime>(
                 .focusable(!viewport.click_through)
                 .visible(false)
                 .position(viewport.descriptor.origin.x, viewport.descriptor.origin.y)
-                .inner_size(viewport.descriptor.logical_size.width, viewport.descriptor.logical_size.height)
+                .inner_size(
+                    viewport.descriptor.logical_size.width,
+                    viewport.descriptor.logical_size.height,
+                )
                 .build()
                 .map_err(|error| (viewport.id.clone(), error.to_string()))?
         };
@@ -533,12 +803,19 @@ async fn apply_native_viewports<R: Runtime>(
             .set_ignore_cursor_events(viewport.click_through)
             .map_err(|error| (viewport.id.clone(), error.to_string()))?;
         if mode == OverlayMode::Hidden {
-            window.hide().map_err(|error| (viewport.id.clone(), error.to_string()))?;
+            window
+                .hide()
+                .map_err(|error| (viewport.id.clone(), error.to_string()))?;
         } else {
-            window.show().map_err(|error| (viewport.id.clone(), error.to_string()))?;
+            window
+                .show()
+                .map_err(|error| (viewport.id.clone(), error.to_string()))?;
         }
-        app.emit("overlay-viewport-changed", DisplayViewport::from(&viewport.descriptor))
-            .map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        app.emit(
+            "overlay-viewport-changed",
+            DisplayViewport::from(&viewport.descriptor),
+        )
+        .map_err(|error| (viewport.id.clone(), error.to_string()))?;
     }
     Ok(())
 }
@@ -562,14 +839,22 @@ mod tests {
         DisplayDescriptor {
             id: DisplayId::new(id).unwrap(),
             origin: DisplayPoint { x, y: 0.0 },
-            logical_size: DisplaySize { width: 1920.0, height: 1080.0 },
+            logical_size: DisplaySize {
+                width: 1920.0,
+                height: 1080.0,
+            },
             scale_factor: scale,
             orientation: DisplayOrientation::Degrees0,
         }
     }
 
     fn snapshot(values: Vec<DisplayDescriptor>) -> DisplaySnapshot {
-        DisplaySnapshot { displays: values.into_iter().map(|value| (value.id.clone(), value)).collect() }
+        DisplaySnapshot {
+            displays: values
+                .into_iter()
+                .map(|value| (value.id.clone(), value))
+                .collect(),
+        }
     }
 
     #[test]
@@ -577,34 +862,63 @@ mod tests {
         let left = descriptor("left", -1920.0, 2.0);
         let main = descriptor("main", 0.0, 1.0);
         let mut registry = OverlayRegistry::new("webview-scene").unwrap();
-        let changes = registry.reconcile(snapshot(vec![left.clone(), main.clone()])).unwrap();
+        let changes = registry
+            .reconcile(snapshot(vec![left.clone(), main.clone()]))
+            .unwrap();
         assert_eq!(changes.added.len(), 2);
         assert_eq!(registry.viewports().len(), 2);
-        let scene_refs = registry.viewports().values().map(|v| v.scene_ref.clone()).collect::<BTreeSet<_>>();
+        let scene_refs = registry
+            .viewports()
+            .values()
+            .map(|v| v.scene_ref.clone())
+            .collect::<BTreeSet<_>>();
         assert_eq!(scene_refs, BTreeSet::from(["webview-scene".into()]));
         let mut rotated = main.clone();
         rotated.scale_factor = 1.5;
-        let changes = registry.reconcile(snapshot(vec![left.clone(), rotated])).unwrap();
+        let changes = registry
+            .reconcile(snapshot(vec![left.clone(), rotated]))
+            .unwrap();
         assert_eq!(changes.updated, vec![main.id.clone()]);
         assert_eq!(changes.added.len(), 0);
         let left_label = registry.viewport(&left.id).unwrap().label.clone();
         registry.reconcile(snapshot(vec![main.clone()])).unwrap();
         assert!(registry.viewport(&left.id).is_none());
         registry.reconcile(snapshot(vec![left])).unwrap();
-        assert_eq!(registry.viewport(&DisplayId::new("left").unwrap()).unwrap().label, left_label);
+        assert_eq!(
+            registry
+                .viewport(&DisplayId::new("left").unwrap())
+                .unwrap()
+                .label,
+            left_label
+        );
         assert_eq!(registry.scene_ref(), "webview-scene");
     }
 
     #[test]
     fn registry_applies_global_mode_and_pointer_state_to_every_viewport() {
         let mut registry = OverlayRegistry::new("webview-scene").unwrap();
-        registry.reconcile(snapshot(vec![descriptor("left", -1920.0, 2.0), descriptor("main", 0.0, 1.0)])).unwrap();
+        registry
+            .reconcile(snapshot(vec![
+                descriptor("left", -1920.0, 2.0),
+                descriptor("main", 0.0, 1.0),
+            ]))
+            .unwrap();
         let mut adapters = BTreeMap::<DisplayId, TauriWindowAdapter>::new();
-        registry.apply_mode_to_adapter(OverlayMode::VisibleClickThrough, &mut adapters).unwrap();
-        assert!(registry.viewports().values().all(|viewport| viewport.click_through && viewport.visible));
+        registry
+            .apply_mode_to_adapter(OverlayMode::VisibleClickThrough, &mut adapters)
+            .unwrap();
+        assert!(registry
+            .viewports()
+            .values()
+            .all(|viewport| viewport.click_through && viewport.visible));
         assert!(adapters.values().all(|adapter| adapter.click_through));
-        registry.apply_mode_to_adapter(OverlayMode::Hidden, &mut adapters).unwrap();
-        assert!(registry.viewports().values().all(|viewport| !viewport.visible));
+        registry
+            .apply_mode_to_adapter(OverlayMode::Hidden, &mut adapters)
+            .unwrap();
+        assert!(registry
+            .viewports()
+            .values()
+            .all(|viewport| !viewport.visible));
         assert!(adapters.values().all(|adapter| !adapter.visible));
     }
 
@@ -612,7 +926,9 @@ mod tests {
     fn viewport_added_after_show_inherits_interactive_mode_for_bootstrap() {
         let mut registry = OverlayRegistry::new("webview-scene").unwrap();
         registry.apply_mode(OverlayMode::VisibleInteractive);
-        registry.reconcile(snapshot(vec![descriptor("main", 0.0, 1.0)])).unwrap();
+        registry
+            .reconcile(snapshot(vec![descriptor("main", 0.0, 1.0)]))
+            .unwrap();
 
         let viewport = registry.viewport(&DisplayId::new("main").unwrap()).unwrap();
         assert_eq!(viewport.mode, OverlayMode::VisibleInteractive);
@@ -623,11 +939,22 @@ mod tests {
     #[test]
     fn scene_store_validates_and_retains_items_when_viewports_change() {
         let mut scene = SceneStore::default();
-        scene.commit_scene_item(serde_json::json!({"id":"stroke-1","kind":"stroke","points":[{"x":1.0,"y":2.0}]})).unwrap();
+        scene
+            .commit_scene_item(
+                serde_json::json!({"id":"stroke-1","kind":"stroke","points":[{"x":1.0,"y":2.0}]}),
+            )
+            .unwrap();
         let before = scene.snapshot();
-        assert!(scene.commit_scene_item(serde_json::json!({"id":"","kind":"stroke"})).is_err());
+        assert!(scene
+            .commit_scene_item(serde_json::json!({"id":"","kind":"stroke"}))
+            .is_err());
         assert_eq!(scene.snapshot(), before);
-        assert_eq!(scene.commit_scene_item(serde_json::json!({"id":"stroke-1","kind":"stroke"})).unwrap(), before);
+        assert_eq!(
+            scene
+                .commit_scene_item(serde_json::json!({"id":"stroke-1","kind":"stroke"}))
+                .unwrap(),
+            before
+        );
     }
 
     #[test]
@@ -651,18 +978,36 @@ mod tests {
         scene.commit_scene_item(pen).unwrap();
         let snapshot = scene.commit_scene_item(highlighter).unwrap();
         assert_eq!(snapshot.items.len(), 2);
-        assert!(matches!(snapshot.items[0], SceneItem::Stroke { tool: StrokeTool::Pen, .. }));
-        assert!(matches!(snapshot.items[1], SceneItem::Stroke { tool: StrokeTool::Highlighter, .. }));
+        assert!(matches!(
+            snapshot.items[0],
+            SceneItem::Stroke {
+                tool: StrokeTool::Pen,
+                ..
+            }
+        ));
+        assert!(matches!(
+            snapshot.items[1],
+            SceneItem::Stroke {
+                tool: StrokeTool::Highlighter,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn scene_store_rejects_unknown_or_malformed_payload_without_mutation() {
         let mut scene = SceneStore::default();
-        scene.commit_scene_item(serde_json::json!({"id":"stable","kind":"stroke","points":[{"x":1.0,"y":2.0}]})).unwrap();
+        scene
+            .commit_scene_item(
+                serde_json::json!({"id":"stable","kind":"stroke","points":[{"x":1.0,"y":2.0}]}),
+            )
+            .unwrap();
         let before = scene.snapshot();
 
         for invalid in [
             serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1.0,"y":2.0}],"unexpected":true}),
+            serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1.0,"y":2.0,"z":3.0}]}),
+            serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1.0,"y":2.0}],"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0,"extra":true}}),
             serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1_000_001.0,"y":2.0}]}),
             serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1.0,"y":2.0},{"x":3.0,"y":4.0}],"style":{"color":"#fff","opacity":2.0,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
             serde_json::json!({"id":"bad","kind":"shape","tool":"line","geometry":{"type":"rectangle","x":0.0,"y":0.0,"width":2.0,"height":2.0},"style": {"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
