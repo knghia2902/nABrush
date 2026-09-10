@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Overlay lifecycle permissions",
+  "description": "Overlay lifecycle permissions; typed commands: get_shortcut_bindings, set_shortcut_binding, set_launch_at_login, get_error_state, set_error_state, retry_overlay, open_system_settings",
   "windows": ["overlay", "settings"],
   "permissions": [
     "core:default",

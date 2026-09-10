@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod controller;
+mod errors;
 mod mode_schema;
 mod platform;
 mod shortcut;
@@ -24,6 +25,7 @@ fn toggle_shortcut() -> Shortcut {
 
 fn setup<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     app.manage(AppController::default());
+    app.manage(errors::ErrorStore::default());
     app.manage(shortcut::ShortcutRegistry::default());
     app.manage(startup::StartupAdapter::default());
     tray::install(app.handle())?;
@@ -37,6 +39,10 @@ fn main() {
             shortcut::set_shortcut_binding,
             startup::get_launch_at_login,
             startup::set_launch_at_login,
+            errors::get_error_state,
+            errors::set_error_state,
+            errors::retry_overlay,
+            errors::open_system_settings,
         ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

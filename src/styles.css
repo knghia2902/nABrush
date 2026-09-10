@@ -7,3 +7,5 @@ main { min-height: 100vh; pointer-events: none; }
 .mode-badge { position: fixed; right: 1rem; bottom: 1rem; padding: 0.4rem 0.7rem; border-radius: 999px; color: white; font-size: 0.8rem; font-weight: 600; pointer-events: none; }
 .mode-badge--drawing { background: #2563eb; cursor: crosshair; }
 .mode-badge--pass-through { background: #475569; cursor: default; }
+.error-badge { position: fixed; left: 1rem; bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; padding: 0.55rem 0.7rem; border-radius: 0.5rem; background: #7f1d1d; color: white; pointer-events: auto; font-size: 0.8rem; }
+.error-badge button { border: 0; border-radius: 0.25rem; padding: 0.25rem 0.45rem; cursor: pointer; }

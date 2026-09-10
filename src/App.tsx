@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { ModeBadge } from "./components/ModeBadge";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { ErrorBadge } from "./components/ErrorBadge";
 import type { OverlayMode } from "./types/overlay";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
     <main aria-label="nABrush overlay" data-mode={mode}>
       {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}
       <ModeBadge mode={mode} />
+      <ErrorBadge />
       <SettingsPanel />
     </main>
   );

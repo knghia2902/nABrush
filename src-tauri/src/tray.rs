@@ -1,5 +1,6 @@
 use crate::controller::AppController;
 use tauri::{menu::MenuBuilder, tray::TrayIconBuilder, AppHandle, Manager, Runtime};
+pub use crate::errors::{get_error_state, set_error_state};
 
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
