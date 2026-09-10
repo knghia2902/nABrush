@@ -1,4 +1,4 @@
-use crate::controller::AppController;
+use crate::controller::{AppController, ShortcutAction};
 pub use crate::errors::{get_error_state, set_error_state};
 use tauri::{menu::MenuBuilder, tray::TrayIconBuilder, AppHandle, Manager, Runtime};
 
@@ -7,6 +7,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .text("show", "Show")
         .text("hide", "Hide")
+        .text("click-through", "Toggle Click-through")
         .text("settings", "Settings")
         .text("quit", "Quit")
         .build()?;
@@ -23,6 +24,9 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 }
                 "hide" => {
                     let _ = controller.hide(app);
+                }
+                "click-through" => {
+                    let _ = controller.dispatch_action(app, ShortcutAction::ToggleClickThrough);
                 }
                 "settings" => {
                     let _ = controller.show_settings(app);

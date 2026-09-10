@@ -89,6 +89,9 @@ impl AppController {
     }
 
     pub fn set_click_through<R: Runtime>(&self, app: &AppHandle<R>, enabled: bool) -> tauri::Result<()> {
+        if self.snapshot().mode == OverlayMode::Hidden {
+            return Ok(());
+        }
         if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
             window.set_ignore_cursor_events(enabled)?;
             window.set_focusable(!enabled)?;
@@ -122,6 +125,9 @@ impl AppController {
             ShortcutAction::Hide | ShortcutAction::Esc => self.hide(app),
             ShortcutAction::ToggleVisibility => self.toggle(app),
             ShortcutAction::ToggleClickThrough => {
+                if self.snapshot().mode == OverlayMode::Hidden {
+                    return Ok(());
+                }
                 let enabled = !self.snapshot().click_through;
                 self.set_click_through(app, enabled)
             }
@@ -192,5 +198,13 @@ mod tests {
         AppController::reduce_snapshot(&mut state, ShortcutAction::Esc);
         assert_eq!(state.mode, OverlayMode::Hidden);
         assert_eq!(state.scene_ref, "webview-scene");
+    }
+
+    #[test]
+    fn action_reducer_does_not_enter_click_through_from_hidden() {
+        let mut state = AppController::default().snapshot();
+        AppController::reduce_snapshot(&mut state, ShortcutAction::ToggleClickThrough);
+        assert_eq!(state.mode, OverlayMode::Hidden);
+        assert!(!state.click_through);
     }
 }
