@@ -8,7 +8,7 @@ updated: 2026-09-10
 
 ## Current Test
 
-Test 2 — Drawing, click-through, Escape, and scene restoration
+Test 3 — Settings close-to-hide and recovery actions
 
 ## Tests
 
@@ -22,11 +22,11 @@ retest: "Gap closure plan 01-08 added a discoverable tray icon and documented th
 
 ### 2. Drawing, click-through, Escape, and scene restoration
 expected: Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
-result: [pending]
+result: pass
 reported: "ok"
 severity: major
 previous_result: issue
-retest: "Plan 01-10 added a retained pointer canvas and production click-through shortcuts; manual retest is required."
+retest: "User confirmed pass after Plan 01-10: drawing, Click-through, Escape, and scene restoration work."
 
 ### 3. Settings close-to-hide and recovery actions
 expected: Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
@@ -45,9 +45,9 @@ observed: "macOS global shortcut remained available during the manual full-scree
 ## Summary
 
 total: 4
-passed: 2
+passed: 3
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
