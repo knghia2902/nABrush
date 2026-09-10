@@ -216,15 +216,15 @@ pub fn schedule_reconcile<R: Runtime>(app: &AppHandle<R>, _signal: TopologySigna
     });
 }
 
-/// Install target observer hooks and perform an initial asynchronous refresh.
-/// The platform modules keep the native callback contract target-gated while
-/// this shared entry point keeps setup deterministic on every build target.
+/// Install target observer hooks. The first authoritative snapshot is taken by
+/// the controller when `Show` is dispatched; later native notifications use
+/// the deferred scheduler below. Avoiding a setup-time WebView reconciliation
+/// keeps the bootstrap windows alive while Tauri finishes initialization.
 pub fn install_observers<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     #[cfg(target_os = "macos")]
     macos::install_observer(app)?;
     #[cfg(target_os = "windows")]
     windows::install_observer(app)?;
-    schedule_reconcile(app, TopologySignal::ScreenParametersChanged);
     Ok(())
 }
 

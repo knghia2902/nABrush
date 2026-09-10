@@ -38,10 +38,10 @@ pub fn on_screen_parameters_changed<R: Runtime>(app: &AppHandle<R>) {
     schedule_reconcile(app, TopologySignal::ScreenParametersChanged);
 }
 
-/// The actual observer is target-gated in the native runner. This hook also
-/// schedules an initial snapshot before any notification can arrive.
-pub fn install_observer<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    on_screen_parameters_changed(app);
+/// The actual observer is target-gated in the native runner. The controller
+/// owns the initial snapshot when the overlay is shown, so setup does not
+/// create dynamic WebViews before the bootstrap window is ready.
+pub fn install_observer<R: Runtime>(_app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 

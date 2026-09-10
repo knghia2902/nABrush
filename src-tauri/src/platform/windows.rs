@@ -46,10 +46,10 @@ pub fn on_display_message<R: Runtime>(app: &AppHandle<R>, message: u32) -> bool 
     true
 }
 
-pub fn install_observer<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+pub fn install_observer<R: Runtime>(_app: &AppHandle<R>) -> tauri::Result<()> {
     // The message hook is attached to each native overlay window by the
-    // Windows runner. Trigger the initial snapshot through the same path.
-    schedule_reconcile(app, TopologySignal::DisplayChanged);
+    // Windows runner. The controller owns the initial snapshot when the
+    // overlay is shown.
     Ok(())
 }
 
