@@ -26,35 +26,39 @@ nABrush sẽ được xây theo sáu lát dọc, mỗi lát hoàn thiện một 
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: OVLY-01, OVLY-02, OVLY-03, OVLY-04
-**Plans:** 7 plans
+**Plans:** 9/9 plans executed
 Plans:
+
+- [x] 01-08-PLAN.md
+- [x] 01-09-PLAN.md
+
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Reviewed frontend scaffold and pinned Rust toolchain
+- [x] 01-01-PLAN.md — Reviewed frontend scaffold and pinned Rust toolchain
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Tray-to-primary-overlay activation tracer and lifecycle fixture
+- [x] 01-02-PLAN.md — Tray-to-primary-overlay activation tracer and lifecycle fixture
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Explicit mode contract and retained-scene emergency fixture
+- [x] 01-03-PLAN.md — Explicit mode contract and retained-scene emergency fixture
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-04-PLAN.md — Settings rebinding UI, transactional shortcuts, and launch-at-login opt-in
+- [x] 01-04-PLAN.md — Settings rebinding UI, transactional shortcuts, and launch-at-login opt-in
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 01-05-PLAN.md — Native hit-testing adapters and mode feedback
+- [x] 01-05-PLAN.md — Native hit-testing adapters and mode feedback
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 01-06-PLAN.md — Recoverable error states and non-modal retry UI
+- [x] 01-06-PLAN.md — Recoverable error states and non-modal retry UI
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 01-07-PLAN.md — Cross-platform smoke tests, CI matrix, and support evidence
+- [x] 01-07-PLAN.md — Cross-platform smoke tests, CI matrix, and support evidence
 
 **Success Criteria** (what must be TRUE):
 
@@ -155,7 +159,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Native Overlay & Activation | 0/TBD | Not started | - |
+| 1. Native Overlay & Activation | 9/9 | In Progress|  |
 | 2. Display Topology & Platform Parity | 0/TBD | Not started | - |
 | 3. Core Annotation Tools | 0/TBD | Not started | - |
 | 4. Editing & Ink Lifecycle | 0/TBD | Not started | - |

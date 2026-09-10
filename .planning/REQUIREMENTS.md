@@ -9,10 +9,10 @@ Requirements for the initial cross-platform release. Each requirement is user-ce
 
 ### Overlay and Activation
 
-- [ ] **OVLY-01**: User can launch nABrush and keep it available from a macOS menu bar or Windows system tray entry.
-- [ ] **OVLY-02**: User can toggle the drawing overlay on or off with a configurable global keyboard shortcut while another app is focused.
+- [x] **OVLY-01**: User can launch nABrush and keep it available from a macOS menu bar or Windows system tray entry.
+- [x] **OVLY-02**: User can toggle the drawing overlay on or off with a configurable global keyboard shortcut while another app is focused.
 - [ ] **OVLY-03**: User can switch between drawing mode, which captures pointer input, and click-through mode, which passes pointer input to the app underneath.
-- [ ] **OVLY-04**: User can trigger an emergency hide action that removes every overlay without clearing the annotation scene.
+- [x] **OVLY-04**: User can trigger an emergency hide action that removes every overlay without clearing the annotation scene.
 - [ ] **OVLY-05**: User can see the current overlay mode and capture/permission errors through an indicator that is not included in exported images.
 
 ### Display and Platform Support
@@ -103,10 +103,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OVLY-01 | Phase 1 | Pending |
-| OVLY-02 | Phase 1 | Pending |
+| OVLY-01 | Phase 1 | Complete |
+| OVLY-02 | Phase 1 | Complete |
 | OVLY-03 | Phase 1 | Pending |
-| OVLY-04 | Phase 1 | Pending |
+| OVLY-04 | Phase 1 | Complete |
 | OVLY-05 | Phase 5 | Pending |
 | DISP-01 | Phase 2 | Pending |
 | DISP-02 | Phase 2 | Pending |
@@ -134,6 +134,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | RELS-03 | Phase 6 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 29 total
 - Mapped to phases: 29
 - Unmapped: 0 ✓
