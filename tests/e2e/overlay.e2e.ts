@@ -9,9 +9,9 @@ async function mode() {
   return browser.execute(() => document.querySelector("main")?.getAttribute("data-mode"));
 }
 
-async function waitForMode(expected: string) {
+async function waitForMode(expected: string, timeout = 15_000) {
   await browser.waitUntil(async () => (await mode()) === expected, {
-    timeout: 15_000,
+    timeout,
     timeoutMsg: `Expected overlay mode ${expected}`,
   });
 }
@@ -24,6 +24,21 @@ async function dispatchNativeAction(action: "Show" | "Hide" | "ToggleClickThroug
   }, action);
 }
 
+async function showWithConfiguredShortcut() {
+  await pressGlobalShortcut("a");
+  try {
+    await waitForMode("VisibleInteractive", 1_000);
+    return "global-shortcut";
+  } catch {
+    // Headless/CI hosts may not allow a second application to own focus. Keep
+    // the native lifecycle assertion deterministic while the device matrix
+    // records the real cross-application shortcut result.
+    await dispatchNativeAction("Show");
+    await waitForMode("VisibleInteractive");
+    return "debug-fixture";
+  }
+}
+
 describe("Phase 1 overlay lifecycle", () => {
   it("cold launches in the background with a tray-owned hidden overlay", async () => {
     await expect(browser).toHaveTitle(/nABrush/i);
@@ -31,9 +46,9 @@ describe("Phase 1 overlay lifecycle", () => {
   });
 
   it("activates from another app, switches modes, and keeps the binding alive", async () => {
-    // The debug action is the deterministic native fixture; the device matrix
-    // separately presses Cmd/Ctrl+Shift+A while another app is focused.
-    await dispatchNativeAction("Show");
+    // Try the configurable global binding first; use the deterministic native
+    // fixture only when the host cannot grant another app the foreground.
+    await showWithConfiguredShortcut();
     await waitForMode("VisibleInteractive");
 
     await dispatchNativeAction("ToggleClickThrough");
@@ -51,7 +66,7 @@ describe("Phase 1 overlay lifecycle", () => {
     });
     expect(sentinel).toBe("phase1-sentinel");
 
-    await dispatchNativeAction("Show");
+    await showWithConfiguredShortcut();
     await waitForMode("VisibleInteractive");
     await dispatchNativeAction("Esc");
     await waitForMode("Hidden");
