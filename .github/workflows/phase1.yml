@@ -1,0 +1,88 @@
+name: Phase 1 native overlay
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "tests/e2e/**"
+      - "wdio.conf.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/phase1.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "tests/e2e/**"
+      - "wdio.conf.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/phase1.yml"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24.x"
+  PNPM_VERSION: "11.19.0"
+
+jobs:
+  macos-13:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm exec vitest run
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: pnpm exec tauri build --debug
+      - run: pnpm exec wdio run wdio.conf.ts --suite short-lifecycle
+
+  windows-2022:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm exec vitest run
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: pnpm exec tauri build --debug
+      - run: pnpm exec wdio run wdio.conf.ts --suite short-lifecycle
+
+  phase1-matrix:
+    needs: [macos-13, windows-2022]
+    if: ${{ always() && needs['macos-13'].result == 'success' && needs['windows-2022'].result == 'success' }}
+    strategy:
+      matrix:
+        os: [macos-13, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tauri build --debug
+      - run: pnpm exec wdio run wdio.conf.ts --suite phase1-matrix

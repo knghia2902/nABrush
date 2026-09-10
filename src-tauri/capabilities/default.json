@@ -14,6 +14,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-close",
     "core:event:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "wdio-webdriver:default"
   ]
 }
