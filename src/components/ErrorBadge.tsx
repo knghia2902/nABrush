@@ -20,7 +20,7 @@ export function ErrorBadge({ initialError = null }: Props) {
 
   if (!error) return null;
   return (
-    <aside className="error-badge" role="status" data-scene-excluded="true" aria-label="Recoverable error">
+    <aside className="error-badge" role="status" data-scene-excluded="true" data-error-code={error.code} aria-label="Recoverable error">
       <span>{error.message}</span>
       {errorHasAction(error, "Retry") ? <button onClick={() => void invoke<boolean>("retry_overlay").then((ok) => ok && setError(null))}>Retry</button> : null}
       {errorHasAction(error, "OpenSystemSettings") ? <button onClick={() => void invoke("open_system_settings")}>Open System Settings</button> : null}

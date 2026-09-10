@@ -36,10 +36,13 @@ async function canvasPointerEvents() {
 async function drawOneStroke() {
   const canvas = await browser.$('[data-overlay-canvas="true"]');
   await canvas.waitForDisplayed();
-  await canvas.moveTo({ x: 240, y: 180 });
-  await canvas.buttonDown(0);
-  await canvas.moveTo({ x: 360, y: 260, duration: 100 });
-  await canvas.buttonUp(0);
+  const location = await canvas.getLocation();
+  await browser.action("pointer", { parameters: { pointerType: "mouse" } })
+    .move({ origin: "viewport", x: location.x + 240, y: location.y + 180 })
+    .down()
+    .move({ origin: "viewport", x: location.x + 360, y: location.y + 260, duration: 100 })
+    .up()
+    .perform();
   await browser.waitUntil(async () => (await sceneSnapshot()).count === 1, {
     timeout: 15_000,
     timeoutMsg: "Pointer drag did not commit one retained scene stroke",

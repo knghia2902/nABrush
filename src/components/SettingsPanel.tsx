@@ -13,11 +13,30 @@ const labels: Array<[BindingAction, string]> = [
 export function SettingsPanel() {
   const [bindings, setBindings] = useState<Bindings | null>(null);
   const [launchAtLogin, setLaunchAtLogin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
 
+  const loadSettings = async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const [nextBindings, nextLaunchAtLogin] = await Promise.all([
+        invoke<Bindings>("get_shortcut_bindings"),
+        invoke<boolean>("get_launch_at_login"),
+      ]);
+      setBindings(nextBindings);
+      setLaunchAtLogin(nextLaunchAtLogin);
+    } catch {
+      setBindings(null);
+      setLoadError("Settings could not be loaded. Retry to reconnect to nABrush.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    void invoke<Bindings>("get_shortcut_bindings").then(setBindings);
-    void invoke<boolean>("get_launch_at_login").then(setLaunchAtLogin);
+    void loadSettings();
   }, []);
 
   const updateBinding = async (action: BindingAction, accelerator: string) => {
@@ -34,12 +53,18 @@ export function SettingsPanel() {
   return (
     <section aria-label="Settings" className="settings-panel">
       <h1>nABrush Settings</h1>
+      {loadError ? (
+        <div role="alert" className="settings-load-error">
+          <p>{loadError}</p>
+          <button type="button" onClick={() => void loadSettings()}>Retry</button>
+        </div>
+      ) : null}
       {labels.map(([action, label]) => (
         <label key={action}>
           {label}
           <input
             value={bindings?.[action] ?? ""}
-            disabled={!bindings}
+            disabled={loading || !bindings}
             onChange={(event) => void updateBinding(action, event.currentTarget.value)}
           />
         </label>
@@ -52,6 +77,7 @@ export function SettingsPanel() {
         <input
           type="checkbox"
           checked={launchAtLogin}
+          disabled={loading || !bindings}
           onChange={(event) => {
             const enabled = event.currentTarget.checked;
             setLaunchAtLogin(enabled);
@@ -60,7 +86,7 @@ export function SettingsPanel() {
         />
         Launch at login
       </label>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p role="alert" data-error-code="ShortcutConflict">{error}</p> : null}
     </section>
   );
 }
