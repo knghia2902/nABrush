@@ -11,7 +11,9 @@ export const SHORTCUT_ACTIONS = [
 ] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
-export type SceneItem = { id: string; kind: "stroke" | "shape" | "text" };
+export type StrokePoint = { x: number; y: number };
+export type StrokeSceneItem = { id: string; kind: "stroke"; points: readonly StrokePoint[] };
+export type SceneItem = StrokeSceneItem | { id: string; kind: "shape" | "text" };
 export type ModeEffect = "show" | "hide" | "interactive" | "click-through" | "retry";
 
 export type ModeState = {
