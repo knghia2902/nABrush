@@ -11,6 +11,7 @@ export const config = {
     "short-lifecycle": ["./tests/e2e/overlay.e2e.ts"],
     "phase1-matrix": ["./tests/e2e/overlay.e2e.ts"],
     "phase2-matrix": ["./tests/e2e/display-topology.e2e.ts"],
+    "phase3-tools": ["./tests/e2e/core-annotation-tools.e2e.ts"],
   },
   maxInstances: 1,
   logLevel: "info",
