@@ -253,6 +253,26 @@ fn commit_scene_item(
     Ok(snapshot)
 }
 
+#[tauri::command]
+fn erase_scene_item(
+    id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SceneStore>>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<SceneSnapshot, String> {
+    let snapshot = state
+        .lock()
+        .expect("scene mutex poisoned")
+        .erase_scene_item(&id)
+        .map_err(|error| error.to_string())?;
+    registry
+        .lock()
+        .expect("registry mutex poisoned")
+        .broadcast_scene(&app, &snapshot)
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot)
+}
+
 fn main() {
     let builder = tauri::Builder::default();
 
@@ -273,6 +293,7 @@ fn main() {
             get_scene_snapshot,
             get_overlay_bootstrap_state,
             commit_scene_item,
+            erase_scene_item,
             test_dispatch_action,
             test_show_settings,
             test_request_close_settings,

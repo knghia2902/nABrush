@@ -660,7 +660,11 @@ export function OverlaySurface({
     if (event.shiftKey) {
       event.preventDefault();
       const next = textDraftTransition(textDraft, { type: "insert-newline" });
-      if (next) onUpdateTextDraft(next.value);
+      if (next) {
+        const start = event.currentTarget.selectionStart ?? textDraft.value.length;
+        const end = event.currentTarget.selectionEnd ?? start;
+        onUpdateTextDraft(`${textDraft.value.slice(0, start)}\n${textDraft.value.slice(end)}`);
+      }
       return;
     }
     const next = textDraftTransition(textDraft, { type: "commit", isComposing: false });

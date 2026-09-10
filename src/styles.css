@@ -24,3 +24,5 @@ main { min-height: 100vh; pointer-events: none; }
 .property-popover label { display: grid; grid-template-columns: 1fr minmax(96px, 1.35fr); align-items: center; gap: 12px; font-size: 12px; font-weight: 600; }
 .property-popover input[type="color"] { width: 42px; height: 28px; justify-self: end; padding: 0; border: 1px solid #cbd5e1; border-radius: 5px; }
 .property-popover input[type="range"], .property-popover select { width: 100%; }
+.text-draft-editor { position: fixed; z-index: 7; min-width: 12rem; min-height: 2rem; max-width: min(28rem, calc(100vw - 32px)); padding: 4px 6px; border: 1px solid rgba(56, 189, 248, 0.9); border-radius: 4px; background: rgba(255, 255, 255, 0.92); font: inherit; line-height: 1.2; resize: both; pointer-events: auto; }
+.text-draft-editor:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }

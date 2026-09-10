@@ -188,7 +188,7 @@ export default function App() {
     }));
   };
   const cancelTextDraft = () => {
-    setAnnotationState((state) => ({ ...state, textDraft: null }));
+    setAnnotationState((state) => state.textDraft ? { ...state, textDraft: null } : state);
   };
   const eraseSceneItem = (id: string) => {
     void invoke<SceneSnapshot>("erase_scene_item", { id })
@@ -236,14 +236,16 @@ export default function App() {
             onCommitSceneItem={commitSceneItem}
             onEraseSceneItem={eraseSceneItem}
           />
-          <AnnotationToolbar
-            activeTool={activeTool}
-            toolStyle={toolStyle ?? DEFAULT_PEN_STYLE}
-            propertyOpen={propertyOpen}
-            onSelectTool={selectTool}
-            onToggleProperties={() => setPropertyOpen((open) => !open)}
-            onUpdateStyle={updateActiveToolStyle}
-          />
+          {mode === "VisibleInteractive" ? (
+            <AnnotationToolbar
+              activeTool={activeTool}
+              toolStyle={toolStyle ?? DEFAULT_PEN_STYLE}
+              propertyOpen={propertyOpen}
+              onSelectTool={selectTool}
+              onToggleProperties={() => setPropertyOpen((open) => !open)}
+              onUpdateStyle={updateActiveToolStyle}
+            />
+          ) : null}
           {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}
           <ModeBadge mode={mode} viewport={viewport} />
           <ErrorBadge mode={mode} viewport={viewport} />

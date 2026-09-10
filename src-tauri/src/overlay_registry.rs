@@ -234,6 +234,14 @@ impl SceneStore {
         Ok(self.snapshot())
     }
 
+    pub fn erase_scene_item(&mut self, id: &str) -> Result<SceneSnapshot, RegistryError> {
+        validate_id(id)?;
+        if let Some(position) = self.items.iter().position(|item| item.id() == id) {
+            self.items.remove(position);
+        }
+        Ok(self.snapshot())
+    }
+
     pub fn clear(&mut self) {
         self.items.clear();
     }
@@ -533,9 +541,9 @@ fn validate_typed_scene_item(item: &SceneItem) -> Result<(), RegistryError> {
                 ));
             }
             validate_point(anchor, "anchor")?;
-            if text.is_empty() || text.len() > 4_096 {
+            if text.is_empty() || text.len() > 4_096 || text.split('\n').count() > 256 {
                 return Err(RegistryError::InvalidSceneItem(
-                    "text is empty or too long".into(),
+                    "text is empty, too long, or has too many lines".into(),
                 ));
             }
             validate_style(style)
@@ -1123,5 +1131,42 @@ mod tests {
             assert!(scene.commit_scene_item(invalid).is_err());
             assert_eq!(scene.snapshot(), before);
         }
+    }
+
+    #[test]
+    fn scene_store_erases_exactly_one_item_and_preserves_unrelated_items() {
+        let mut scene = SceneStore::with_id("stable-scene").unwrap();
+        let style = serde_json::json!({"color":"#334155","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#334155","fillOpacity":0.18,"textSize":24.0});
+        scene
+            .commit_scene_item(serde_json::json!({
+                "id":"stroke-1","kind":"stroke","tool":"pen",
+                "points":[{"x":10.0,"y":10.0},{"x":50.0,"y":10.0}],"style":style.clone()
+            }))
+            .unwrap();
+        scene
+            .commit_scene_item(serde_json::json!({
+                "id":"text-1","kind":"text","tool":"text",
+                "anchor":{"x":100.0,"y":100.0},"text":"label","style":style.clone()
+            }))
+            .unwrap();
+
+        let before_invalid = scene.snapshot();
+        assert!(scene
+            .commit_scene_item(serde_json::json!({
+                "id":"too-many-lines","kind":"text","tool":"text",
+                "anchor":{"x":100.0,"y":100.0},"text":format!("{}x", "\n".repeat(256)),"style":style
+            }))
+            .is_err());
+        assert_eq!(scene.snapshot(), before_invalid);
+
+        let erased = scene.erase_scene_item("stroke-1").unwrap();
+        assert_eq!(erased.scene_id, "stable-scene");
+        assert_eq!(erased.items.len(), 1);
+        assert!(matches!(erased.items[0], SceneItem::Text { ref id, ref text, .. } if id == "text-1" && text == "label"));
+
+        let no_op = scene.erase_scene_item("missing").unwrap();
+        assert_eq!(no_op, erased);
+        assert!(scene.erase_scene_item("").is_err());
+        assert!(scene.erase_scene_item(&"x".repeat(257)).is_err());
     }
 }
