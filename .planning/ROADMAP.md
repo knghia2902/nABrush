@@ -76,6 +76,13 @@ Plans:
 **Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: DISP-01, DISP-02, DISP-03, DISP-04
+**Plans:** 4 plans
+Plans:
+
+- [ ] 02-01-PLAN.md — Canonical display model, viewport tracer, and topology coalescing
+- [ ] 02-02-PLAN.md — Multi-display registry, asynchronous windows, and shared scene boundary
+- [ ] 02-03-PLAN.md — Per-display canvas transforms and parity feedback UI
+- [ ] 02-04-PLAN.md — Native platform observers, E2E matrix, and support evidence
 **Success Criteria** (what must be TRUE):
 
   1. User sees an overlay on every connected display with marks aligned to each display's resolution, orientation, scale factor, and negative desktop coordinates.
