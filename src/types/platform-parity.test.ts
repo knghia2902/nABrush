@@ -46,14 +46,39 @@ describe("platform parity contract", () => {
     });
   });
 
-  it("rejects changed ordering and duplicate export passes", () => {
+  it("rejects changed shortcut and tool ordering", () => {
+    expect(() => validatePlatformParityContract({
+      ...PLATFORM_PARITY_CONTRACT,
+      shortcutConcepts: [...PLATFORM_PARITY_CONTRACT.shortcutConcepts].reverse(),
+    })).toThrow(/shortcut concepts/);
     expect(() => validatePlatformParityContract({
       ...PLATFORM_PARITY_CONTRACT,
       toolOrder: [...PLATFORM_PARITY_CONTRACT.toolOrder].reverse(),
     })).toThrow(/tool order/);
+  });
+
+  it("rejects missing or renamed mode feedback anchors", () => {
+    expect(() => validatePlatformParityContract({
+      ...PLATFORM_PARITY_CONTRACT,
+      modeFeedback: {
+        ...PLATFORM_PARITY_CONTRACT.modeFeedback,
+        anchors: { ...PLATFORM_PARITY_CONTRACT.modeFeedback.anchors, errorBadge: "toolbar" },
+      },
+    })).toThrow(/mode feedback/);
+  });
+
+  it("rejects duplicate passes, non-display density, and UI chrome inclusion", () => {
     expect(() => validatePlatformParityContract({
       ...PLATFORM_PARITY_CONTRACT,
       exportSemantics: { ...PLATFORM_PARITY_CONTRACT.exportSemantics, compositionPasses: 2 },
+    })).toThrow(/export semantics/);
+    expect(() => validatePlatformParityContract({
+      ...PLATFORM_PARITY_CONTRACT,
+      exportSemantics: { ...PLATFORM_PARITY_CONTRACT.exportSemantics, pixelDensity: "logical" },
+    })).toThrow(/export semantics/);
+    expect(() => validatePlatformParityContract({
+      ...PLATFORM_PARITY_CONTRACT,
+      exportSemantics: { ...PLATFORM_PARITY_CONTRACT.exportSemantics, included: ["background", "toolbar"] },
     })).toThrow(/export semantics/);
   });
 });

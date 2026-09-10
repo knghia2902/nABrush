@@ -127,4 +127,33 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.tool_order, TOOL_ORDER.iter().map(|value| (*value).to_owned()).collect::<Vec<_>>());
     }
+
+    #[test]
+    fn rejects_order_mode_composition_density_and_chrome_drift() {
+        let fixture = load_contract().expect("fixture should validate");
+
+        let mut shortcut_order = fixture.clone();
+        shortcut_order.shortcut_concepts.reverse();
+        assert!(validate_contract(&shortcut_order).is_err());
+
+        let mut tool_order = fixture.clone();
+        tool_order.tool_order.reverse();
+        assert!(validate_contract(&tool_order).is_err());
+
+        let mut mode_anchor = fixture.clone();
+        mode_anchor.mode_feedback.anchors.error_badge = "toolbar".into();
+        assert!(validate_contract(&mode_anchor).is_err());
+
+        let mut duplicate_pass = fixture.clone();
+        duplicate_pass.export_semantics.composition_passes = 2;
+        assert!(validate_contract(&duplicate_pass).is_err());
+
+        let mut non_pixel_density = fixture.clone();
+        non_pixel_density.export_semantics.pixel_density = "logical".into();
+        assert!(validate_contract(&non_pixel_density).is_err());
+
+        let mut included_chrome = fixture;
+        included_chrome.export_semantics.included = vec!["background".into(), "toolbar".into()];
+        assert!(validate_contract(&included_chrome).is_err());
+    }
 }
