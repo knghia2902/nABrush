@@ -128,7 +128,13 @@ Plans:
   4. User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations, with configurable color and text size.
   5. User can use an eraser to remove one selected annotation without affecting unrelated annotations.
 
-**Plans**: TBD
+**Plans:** 4 plans
+Plans:
+
+- [ ] 03-01-PLAN.md — Pen/highlighter tracer, typed scene validation, toolbar and per-tool styles
+- [ ] 03-02-PLAN.md — Line/arrow and rectangle/ellipse geometry tools with preview and fill styles
+- [ ] 03-03-PLAN.md — Text draft lifecycle, canonical hit-testing and single-item eraser
+- [ ] 03-04-PLAN.md — Native tool smoke suite and validation traceability
 
 ### Phase 4: Editing & Ink Lifecycle
 
