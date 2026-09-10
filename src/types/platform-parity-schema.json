@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "shortcutConcepts": [
+    "Show",
+    "ToggleVisibility",
+    "ToggleClickThrough",
+    "Esc"
+  ],
+  "toolOrder": [
+    "pen",
+    "highlighter",
+    "line",
+    "arrow",
+    "rectangle",
+    "ellipse",
+    "text",
+    "eraser"
+  ],
+  "modeFeedback": {
+    "interactiveLabel": "Đang vẽ",
+    "clickThroughLabel": "Xuyên qua",
+    "anchors": {
+      "modeBadge": "mode-badge",
+      "errorBadge": "error-badge"
+    },
+    "sceneExcluded": true
+  },
+  "exportSemantics": {
+    "composition": "canonical-logical-desktop",
+    "compositionPasses": 1,
+    "pixelDensity": "display",
+    "included": [
+      "background",
+      "annotations"
+    ],
+    "excluded": [
+      "toolbar",
+      "mode-badge",
+      "error-badge"
+    ]
+  }
+}

@@ -5,6 +5,7 @@ mod display;
 mod errors;
 mod mode_schema;
 mod overlay_registry;
+mod parity_schema;
 mod platform;
 mod shortcut;
 mod startup;
@@ -152,6 +153,7 @@ fn main() {
             errors::set_error_state,
             errors::retry_overlay,
             errors::open_system_settings,
+            parity_schema::platform_parity_contract,
             get_scene_snapshot,
             commit_scene_item,
             test_dispatch_action,
