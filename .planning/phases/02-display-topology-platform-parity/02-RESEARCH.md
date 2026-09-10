@@ -349,27 +349,17 @@ The planner should split the phase into these dependency-ordered slices. These a
 | A5 | Native full-screen behavior can be classified by the requested Supported/Limited/Unsupported matrix without promising exclusive full-screen. | Summary; Full-screen pattern | Platform behavior varies by OS version, compositor, and app; manual matrix evidence is required before release claims. |
 | A6 | The existing shared React scene state can be routed to multiple webviews through Tauri events/commands without introducing a new persistence layer. | Architecture Patterns | Multi-webview synchronization may expose a state ownership gap; keep scene ownership native or define a one-way event contract if needed. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What stable monitor key should adapters expose?**
-   - What we know: AppKit exposes a `CGDirectDisplayID` property and Windows monitor handles are valid while present; Windows docs warn that an `HMONITOR` can become invalid after `WM_DISPLAYCHANGE`. [CITED: https://developer.apple.com/documentation/AppKit/NSScreen?changes=__4&language=objc] [CITED: https://learn.microsoft.com/en-us/windows/win32/gdi/hmonitor-and-the-device-context]
-   - What's unclear: Whether the cross-platform key should be a native ID, stable name, or a composite descriptor in this codebase. [ASSUMED]
-   - Recommendation: Keep an adapter-owned opaque key plus descriptor equality; on Windows refresh keys after display messages and test reconnect/reorder. [ASSUMED]
+The following decisions are closed for execution. They refine the implementation latitude in `02-CONTEXT.md` without changing any locked D2 decision.
 
-2. **Should native display events be delivered through Tauri’s window event path or direct platform observers?**
-   - What we know: Tauri exposes `WindowEvent::Moved`, `Resized`, and `ScaleFactorChanged`, while AppKit and Win32 expose system-level topology notifications. [CITED: https://docs.rs/tauri/latest/tauri/enum.WindowEvent.html] [CITED: https://developer.apple.com/documentation/AppKit/NSApplication/didChangeScreenParametersNotification] [CITED: https://learn.microsoft.com/en-us/windows/win32/gdi/wm-displaychange]
-   - What's unclear: Tauri’s window events alone may not signal an unplugged display when no window moves. [ASSUMED]
-   - Recommendation: Use direct native topology observers behind the platform adapter and use Tauri window events as per-window geometry/DPI signals. [ASSUMED]
+1. **Stable monitor identity:** Adapters expose an opaque `DisplayId` generated in Rust from the native display identity available in the current snapshot. macOS uses the `CGDirectDisplayID`-backed value; Windows refreshes the identity after `WM_DISPLAYCHANGE` because an `HMONITOR` may become invalid. The registry treats the key as valid only for the current snapshot and uses descriptor equality to classify updates. A reconnect that returns the same native identity reuses the retained viewport/scene association; a new identity gets a new viewport while canonical scene records remain untouched. [CITED: https://developer.apple.com/documentation/AppKit/NSScreen?changes=__4&language=objc] [CITED: https://learn.microsoft.com/en-us/windows/win32/gdi/hmonitor-and-the-device-context] [ASSUMED]
 
-3. **Which macOS native window level is acceptable for the shipped distribution path?**
-   - What we know: Collection behavior controls Space/full-screen participation, and the current config enables the Tauri `macos-private-api` feature. [CITED: https://developer.apple.com/documentation/appkit/nswindow/collectionbehavior-swift.struct] [VERIFIED: src-tauri/Cargo.toml:19-20] [VERIFIED: src-tauri/tauri.conf.json:12-27]
-   - What's unclear: Whether the target direct-download/App Store distribution choice permits the exact transparent native overlay implementation. [ASSUMED]
-   - Recommendation: Keep the Phase 2 support matrix behavior-focused, record the distribution limitation, and leave signing/package policy to Phase 6. [VERIFIED: .planning/phases/02-display-topology-platform-parity/02-CONTEXT.md:32-37] [ASSUMED]
+2. **Native event delivery:** Direct AppKit and Win32 topology observers are the authoritative source for add/remove/reconfigure events. Tauri `WindowEvent::Moved`, `Resized`, and `ScaleFactorChanged` remain per-window geometry signals only. Both routes call `schedule_reconcile`, which feeds the bounded coalescer; native callbacks never create or destroy WebViews synchronously. [CITED: https://docs.rs/tauri/latest/tauri/enum.WindowEvent.html] [CITED: https://developer.apple.com/documentation/AppKit/NSApplication/didChangeScreenParametersNotification] [CITED: https://learn.microsoft.com/en-us/windows/win32/gdi/wm-displaychange]
 
-4. **How should a failed single display affect global mode?**
-   - What we know: D2-15 requires the app and shared scene to remain alive with a clear actionable error. [VERIFIED: .planning/phases/02-display-topology-platform-parity/02-CONTEXT.md:34-37]
-   - What's unclear: Whether other displays remain interactive while one viewport is blocked, or whether the manager reports a partial state. [ASSUMED]
-   - Recommendation: Preserve and operate healthy viewports, mark the failed display in status, and verify this behavior before locking UI copy. [ASSUMED]
+3. **macOS window level and distribution boundary:** Keep the existing transparent always-on-top Tauri window configuration with `macOSPrivateApi`, add eligible `fullScreenAuxiliary` and `canJoinAllApplications` collection behavior, and classify behavior by compositor outcome. Phase 2 makes no App Store eligibility claim; the support matrix records that direct distribution requires the signed/notarized path that Phase 6 will harden. [CITED: https://developer.apple.com/documentation/appkit/nswindow/collectionbehavior-swift.struct] [VERIFIED: src-tauri/Cargo.toml:19-20] [VERIFIED: src-tauri/tauri.conf.json:12-27]
+
+4. **Partial display failure:** A failed viewport is scoped to its `DisplayId`. Healthy viewports continue using the current global mode and remain interactive or click-through together; the failed viewport is hidden or marked with a typed actionable error. The shared scene, controller mode, and retained viewport descriptor remain alive. `Retry` refreshes the final display snapshot and attempts the failed identity again; it never clears scene records. This is the concrete D2-15 behavior and the UI-SPEC partial-state contract. [VERIFIED: .planning/phases/02-display-topology-platform-parity/02-CONTEXT.md:34-37] [VERIFIED: .planning/phases/02-display-topology-platform-parity/02-UI-SPEC.md:93-104] [ASSUMED]
 
 ## Environment Availability
 

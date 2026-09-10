@@ -30,17 +30,18 @@ created: "2026-09-10"
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | DISP-01 | T-02-01 | Reject invalid monitor geometry before native calls | unit | `cargo test --manifest-path src-tauri/Cargo.toml topology` | ❌ W0 | ⬜ pending |
-| 02-01-02 | 01 | 1 | DISP-03 | T-02-03 | Coalesce topology bursts and apply one final snapshot | unit | `cargo test --manifest-path src-tauri/Cargo.toml topology` | ❌ W0 | ⬜ pending |
-| 02-02-01 | 02 | 2 | DISP-01 | T-02-05 | Generate native labels from validated monitor identities and broadcast global mode | unit/integration | `cargo test --manifest-path src-tauri/Cargo.toml overlay_registry` | ❌ W0 | ⬜ pending |
-| 02-02-02 | 02 | 2 | DISP-03 | T-02-06 | Preserve retained scene records when a viewport is removed and recover native failures | unit | `cargo test --manifest-path src-tauri/Cargo.toml overlay_registry` | ❌ W0 | ⬜ pending |
-| 02-03-01 | 03 | 3 | DISP-01 | T-02-10 | Map canonical points to local logical viewport and DPR backing size | unit | `pnpm exec vitest run src/components/overlay-surface.test.tsx` | ❌ W0 | ⬜ pending |
-| 02-03-02 | 03 | 3 | DISP-04 | T-02-12 | Broadcast mode badge state and scoped recovery to every display viewport | unit | `pnpm exec vitest run src/components/mode-badge.test.tsx` | ✅ existing | ⬜ pending |
-| 02-04-01 | 04 | 4 | DISP-02 | T-02-14 | Keep scene alive and expose actionable error for blocked full-screen surface | e2e/manual | `pnpm exec wdio run wdio.conf.ts --suite phase2-matrix` | ❌ Wave 0 | ⬜ pending |
-| 02-04-02 | 04 | 4 | DISP-04 | T-02-17 | Keep shortcut concepts and mode feedback identical on macOS and Windows | e2e/manual | `pnpm exec wdio run wdio.conf.ts --suite phase2-matrix` | ❌ Wave 0 | ⬜ pending |
-| 02-04-03 | 04 | 4 | DISP-01, DISP-02, DISP-03, DISP-04 | T-02-15 | Record manual mixed-DPI, negative-origin, rotation, hot-plug, and full-screen evidence by OS | manual-only | `test -f docs/support-matrix.md && rg -q "Mixed-DPI" docs/support-matrix.md` | ✅ contract | ⬜ pending |
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | Failure signal | File Exists | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|----------------|-------------|--------|
+| 02-01-01 | 01 | 1 | DISP-01 | T-02-01 | Reject invalid monitor geometry before native calls | unit | `cargo test --manifest-path src-tauri/Cargo.toml topology && pnpm exec vitest run src/components/overlay-surface.test.tsx` | Descriptor validation or canonical viewport transform tests fail | ❌ W0 | ⬜ pending |
+| 02-01-02 | 01 | 1 | DISP-03 | T-02-03 | Coalesce topology bursts and apply one final snapshot | unit | `cargo test --manifest-path src-tauri/Cargo.toml topology && cargo test --manifest-path src-tauri/Cargo.toml tracer` | Diff/coalescer or retained-scene tracer tests fail | ❌ W0 | ⬜ pending |
+| 02-02-01 | 02 | 2 | DISP-01 | T-02-05 | Generate native labels from validated monitor identities and broadcast global mode | unit/integration | `cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && cargo test --manifest-path src-tauri/Cargo.toml controller` | Registry add/remove/update or controller broadcast tests fail | ❌ W0 | ⬜ pending |
+| 02-02-02 | 02 | 2 | DISP-03 | T-02-06 | Preserve retained scene records when a viewport is removed and recover native failures | unit | `cargo test --manifest-path src-tauri/Cargo.toml overlay_registry && cargo test --manifest-path src-tauri/Cargo.toml controller && pnpm build` | Registry/controller recovery or production build fails | ❌ W0 | ⬜ pending |
+| 02-03-01 | 03 | 3 | DISP-01 | T-02-10 | Map canonical points to local logical viewport and DPR backing size | unit | `pnpm exec vitest run src/components/overlay-surface.test.tsx && pnpm build` | Viewport transform, scene bridge, or frontend build fails | ❌ W0 | ⬜ pending |
+| 02-03-02 | 03 | 3 | DISP-04 | T-02-12 | Broadcast mode badge state and scoped recovery to every display viewport | unit | `pnpm exec vitest run src/components/mode-badge.test.tsx && pnpm exec vitest run src/components/error-badge.test.tsx && pnpm test` | Badge, scoped recovery, or full frontend unit suite fails | ✅ existing | ⬜ pending |
+| 02-03-03 | 03 | 3 | DISP-04 | T-02-19 | Keep shortcut concepts, tool order, and export semantics identical across targets | unit/native contract | `pnpm exec vitest run src/types/platform-parity.test.ts && cargo test --manifest-path src-tauri/Cargo.toml parity_schema && pnpm build` | Rust/TypeScript parity fixture or native command build fails | ❌ W0 | ⬜ pending |
+| 02-04-01 | 04 | 4 | DISP-02 | T-02-14 | Refresh topology from native observers and preserve state on capability failure | unit/native | `cargo test --manifest-path src-tauri/Cargo.toml platform && cargo test --manifest-path src-tauri/Cargo.toml topology` | Platform observer, capability, or topology scheduling tests fail | ❌ Wave 0 | ⬜ pending |
+| 02-04-02 | 04 | 4 | DISP-04 | T-02-17 | Verify viewport, parity-contract, mode, and recovery behavior on macOS and Windows | e2e/manual | `pnpm exec wdio run wdio.conf.ts --suite phase2-matrix && pnpm build && test -f .github/workflows/phase2.yml && test -f docs/support-matrix.md` | E2E parity/topology assertions, build, CI, or support artifact fails | ❌ Wave 0 | ⬜ pending |
+| 02-04-03 | 04 | 4 | DISP-01, DISP-02, DISP-03, DISP-04 | T-02-15 | Record manual mixed-DPI, negative-origin, rotation, hot-plug, and full-screen evidence by OS | manual-only | `test -f docs/support-matrix.md && rg -q "Mixed-DPI" docs/support-matrix.md && rg -q "Negative origin" docs/support-matrix.md && rg -q "Borderless" docs/support-matrix.md` | Required hardware rows or platform evidence fields are missing | ✅ contract | ⬜ pending |
 
 ## Wave 0 Requirements
 
@@ -48,6 +49,7 @@ created: "2026-09-10"
 - [ ] `src-tauri/src/overlay_registry.rs` or equivalent — fake adapter tests for add/remove/update/broadcast and scene retention.
 - [ ] `src-tauri/src/platform/*` fixtures — platform event-to-snapshot reconciliation and actionable failure cases.
 - [ ] `src/components/OverlaySurface.test.tsx` or equivalent — canonical point transform and DPR backing dimensions.
+- [ ] `src/types/platform-parity-schema.json`, TypeScript tests, and Rust parity-schema tests — shared shortcut concepts, tool-order, and export-semantics contract.
 - [ ] `tests/e2e/display-topology.e2e.ts` plus `phase2-matrix` suite entry — per-display windows, badges, topology fixture, and mode broadcast.
 - [ ] Manual hardware matrix — mixed DPI, rotation, negative origin, add/remove, and supported/limited full-screen modes on macOS and Windows.
 
@@ -62,7 +64,7 @@ The executable plan set uses four dependency waves: `02-01` (canonical model and
 | Mixed-DPI placement and negative-origin alignment | DISP-01 | Requires two physical displays with independent scale factors and a virtual desktop origin | On macOS and Windows, connect displays with different scales, place one to the left, rotate one display, show overlay, and verify marks align at each native origin and resolution. |
 | Borderless/native full-screen overlay persistence | DISP-02 | Compositor and Space behavior cannot be reproduced by unit tests | Exercise a supported borderless/native full-screen app on both platforms; verify overlay remains aligned. Exercise exclusive full-screen and record Limited/Unsupported behavior without losing scene state. |
 | Hot-plug and DPI/rotation reconciliation | DISP-03 | Physical add/remove and OS display reconfiguration are hardware-dependent | Show overlay, add/remove a display, rotate it, change scale, and verify windows reconcile without restart and retained marks return when the display returns. |
-| Cross-platform parity matrix | DISP-04 | Requires both macOS and Windows runners and native shortcut behavior | Run the same show/hide/click-through/emergency-hide flow on both OSes and compare mode labels, badge placement, shortcut concepts, and scene retention. |
+| Cross-platform parity matrix | DISP-04 | Requires both macOS and Windows runners and native shortcut behavior | Run the same show/hide/click-through/emergency-hide flow on both OSes and compare mode labels, badge placement, shortcut concepts, the ordered tool vocabulary exposed by the parity contract, export one-pass/composition exclusions, and scene retention. |
 
 ## Validation Sign-Off
 
