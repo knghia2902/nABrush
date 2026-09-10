@@ -1,5 +1,5 @@
 ---
-status: complete
+status: testing
 phase: 01-native-overlay-activation
 source: [01-VERIFICATION.md]
 started: 2026-09-10
@@ -8,7 +8,7 @@ updated: 2026-09-10
 
 ## Current Test
 
-[testing complete]
+Test 2 — Drawing, click-through, Escape, and scene restoration
 
 ## Tests
 
@@ -22,16 +22,19 @@ retest: "Gap closure plan 01-08 added a discoverable tray icon and documented th
 
 ### 2. Drawing, click-through, Escape, and scene restoration
 expected: Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
-result: issue
+result: [pending]
 reported: "ok"
 severity: major
-note: "User confirmed the current build lacks a drawing toolbar/canvas and a Click-through control, so this test cannot be completed."
+previous_result: issue
+retest: "Plan 01-10 added a retained pointer canvas and production click-through shortcuts; manual retest is required."
 
 ### 3. Settings close-to-hide and recovery actions
 expected: Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
-result: issue
+result: [pending]
 reported: "settings mở lúc được lúc không"
 severity: major
+previous_result: issue
+retest: "Plan 01-11 keeps the Settings webview reusable and adds typed retry/error feedback; manual repeated open-close-open retest is required."
 
 ### 4. Full-screen and permission limitations
 expected: Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
@@ -43,8 +46,8 @@ observed: "macOS global shortcut remained available during the manual full-scree
 
 total: 4
 passed: 2
-issues: 2
-pending: 0
+issues: 0
+pending: 2
 skipped: 0
 blocked: 0
 
@@ -87,8 +90,10 @@ blocked: 0
 
 - gap_id: G-01-3
   truth: "Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show."
-  status: failed
-  reason: "User confirmed the test cannot be completed because the current build has no drawing toolbar/canvas or Click-through control."
+  status: resolved
+  resolved_by: 01-10-PLAN.md
+  resolved_at: 2026-09-10
+  reason: "Plan 01-10 added a retained single-stroke canvas, native click-through actions, Escape restoration, and real scene E2E coverage."
   severity: major
   test: 2
   artifacts:
@@ -107,8 +112,10 @@ blocked: 0
 
 - gap_id: G-01-4
   truth: "Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry."
-  status: failed
-  reason: "User reported: settings mở lúc được lúc không"
+  status: resolved
+  resolved_by: 01-11-PLAN.md
+  resolved_at: 2026-09-10
+  reason: "Plan 01-11 prevents native destruction on close, reports missing windows through ErrorStore, and adds retryable Settings/recovery paths."
   severity: major
   test: 3
   artifacts:
