@@ -19,6 +19,7 @@ reported: "Bấm show không có gì xảy ra và settings thì trống trơn"
 severity: major
 previous_result: issue
 retest: "Gap closure plan 01-08 added a discoverable tray icon and documented the Tauri dev launch path."
+observed: "macOS passed previously; user confirmed the equivalent Windows tray and activation flow passed."
 
 ### 2. Drawing, click-through, Escape, and scene restoration
 expected: Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
@@ -27,6 +28,7 @@ reported: "ok"
 severity: major
 previous_result: issue
 retest: "User confirmed pass after Plan 01-10: drawing, Click-through, Escape, and scene restoration work."
+observed: "macOS passed previously; user confirmed Windows drawing, Click-through, Escape, and scene restoration passed."
 
 ### 3. Settings close-to-hide and recovery actions
 expected: Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
@@ -35,12 +37,13 @@ reported: "settings mở lúc được lúc không"
 severity: major
 previous_result: issue
 retest: "User confirmed pass after Plan 01-11: Settings reopened reliably and recovery behavior worked."
+observed: "macOS passed previously; user confirmed the Windows Settings and recovery flow passed."
 
 ### 4. Full-screen and permission limitations
 expected: Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
 result: pass
 reported: "Cmd+Shift+A hoạt động"
-observed: "macOS global shortcut remained available during the manual full-screen/Space check; Windows device evidence was not available in this session."
+observed: "macOS full-screen/Space behavior passed; user confirmed the Windows full-screen and permission checks passed."
 
 ## Summary
 

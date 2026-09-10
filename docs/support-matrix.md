@@ -21,10 +21,10 @@ The `src-tauri/target/debug/nabrush` executable is the raw WebDriver/debug binar
 
 Record the following evidence for each available device:
 
-- [ ] nABrush status-item icon is visible in the menu bar or notification area.
-- [ ] `Show` and `Hide` from the tray menu change overlay visibility without quitting the process.
-- [ ] `Cmd/Ctrl+Shift+A` activates the overlay while the second application has focus.
-- [ ] Observed app/process state is recorded, including the intentional absence of a normal document window.
+- [x] nABrush status-item icon is visible in the menu bar or notification area on macOS and Windows.
+- [x] `Show` and `Hide` from the tray menu change overlay visibility without quitting the process on macOS and Windows.
+- [x] `Cmd/Ctrl+Shift+A` activates the overlay while the second application has focus on macOS and Windows.
+- [x] The tray-only app/process state and intentional absence of a normal document window were confirmed on both platforms.
 
 ## Phase 1 acceptance contract
 
@@ -36,8 +36,8 @@ Pointer delivery is recorded against concrete fixtures: macOS TextEdit with a kn
 
 | Device | OS version | Text fixture | Tray/activation | Drawing/click-through/Escape | Close-to-hide | Recovery | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| macOS device | Pending (13+) | TextEdit, known text target | Pending | Pending | Pending | Pending | Attach screen recording or test log here |
-| Windows device | Pending (10 22H2+) | Notepad, known text target | Pending | Pending | Pending | Pending | Attach screen recording or test log here |
+| macOS device | Version not recorded | TextEdit, known text target | Pass | Pass | Pass | Pass | Manual UAT recorded in `01-UAT.md` |
+| Windows device | Version not recorded | Notepad, known text target | Pass (user-confirmed) | Pass (user-confirmed) | Pass (user-confirmed) | Pass (user-confirmed) | User confirmation recorded in `01-VERIFICATION.md`; no separate log attached |
 
 ## Platform limitations and distribution
 

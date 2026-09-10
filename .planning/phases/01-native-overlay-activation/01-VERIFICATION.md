@@ -1,6 +1,6 @@
 ---
 phase: 01-native-overlay-activation
-status: human_needed
+status: passed
 verified: 2026-09-10
 goal: "Tray/menu-bar launch, global activation, safe Drawing/Click-through switching, and emergency hide with scene restoration"
 requirements: [OVLY-01, OVLY-02, OVLY-03, OVLY-04]
@@ -10,15 +10,15 @@ requirements: [OVLY-01, OVLY-02, OVLY-03, OVLY-04]
 
 ## Goal verdict
 
-The implementation and automated native smoke path cover the phase goal. Manual UAT passed on the current macOS device for activation, drawing, Click-through, Escape/scene restoration, Settings reuse, conflict rollback, and Retry. The phase remains pending until a Windows 10 22H2+ device provides equivalent cross-application and compositor evidence.
+The implementation and automated native smoke path cover the phase goal. Manual UAT passed on macOS and Windows for activation, drawing, Click-through, Escape/scene restoration, Settings reuse, conflict rollback, and Retry. The Windows OS build and an external evidence artifact were not recorded in this session; the result is based on the user's direct confirmation.
 
 ## Must-have verification
 
 | Must-have | Evidence | Result |
 | --- | --- | --- |
-| Tray-owned cold launch with hidden overlay and settings lifecycle | `src-tauri/src/tray.rs`, Tauri debug build, WebDriver cold-launch test, macOS UAT | Pass on macOS; Windows confirmation pending |
-| Configurable global activation while another app is focused | Shortcut registry unit tests, `tests/e2e/overlay.e2e.ts`, macOS UAT | Pass on macOS; Windows focus delivery pending |
-| Drawing and Click-through modes preserve one scene surface | Controller/platform tests, native drag coverage, macOS UAT | Pass on macOS; Windows pointer delivery pending |
+| Tray-owned cold launch with hidden overlay and settings lifecycle | `src-tauri/src/tray.rs`, Tauri debug build, WebDriver cold-launch test, macOS and Windows UAT | Pass on macOS and Windows |
+| Configurable global activation while another app is focused | Shortcut registry unit tests, `tests/e2e/overlay.e2e.ts`, macOS and Windows UAT | Pass on macOS and Windows |
+| Drawing and Click-through modes preserve one scene surface | Controller/platform tests, native drag coverage, macOS and Windows UAT | Pass on macOS and Windows |
 | Bare Escape hides and later restores the same scene | Retained-scene reducer tests, retained stroke WebDriver assertion, macOS UAT | Pass |
 | Recoverable conflict and initialization failure states | Rust error/shortcut tests and matrix fixture assertions | Automated pass |
 
@@ -26,10 +26,10 @@ The implementation and automated native smoke path cover the phase goal. Manual 
 
 | Requirement | Plan evidence | Verification | Status |
 | --- | --- | --- | --- |
-| OVLY-01 | 01-02, 01-07 | Tray integration, Tauri build, cold-launch smoke, device tray row | Human needed |
-| OVLY-02 | 01-04, 01-07 | Transactional binding tests, WebDriver action path, device global shortcut fixture | Human needed |
-| OVLY-03 | 01-03, 01-05, 01-07 | Mode reducer/platform policy tests, native smoke transitions, TextEdit/Notepad pointer fixture | Human needed |
-| OVLY-04 | 01-03, 01-06, 01-07 | Scene reducer, recovery tests, phase1-sentinel hide/restore smoke | Pass pending device confirmation |
+| OVLY-01 | 01-02, 01-07 | Tray integration, Tauri build, cold-launch smoke, macOS and Windows device UAT | Pass |
+| OVLY-02 | 01-04, 01-07 | Transactional binding tests, WebDriver action path, macOS and Windows device UAT | Pass |
+| OVLY-03 | 01-03, 01-05, 01-07 | Mode reducer/platform policy tests, native smoke transitions, macOS and Windows device UAT | Pass |
+| OVLY-04 | 01-03, 01-06, 01-07 | Scene reducer, recovery tests, phase1-sentinel hide/restore smoke | Pass |
 
 ## Automated evidence
 
@@ -45,9 +45,9 @@ The implementation and automated native smoke path cover the phase goal. Manual 
 
 ## Human verification
 
-1. macOS UAT passed on the current device, including `Cmd+Shift+A`; Windows 10 22H2+ evidence remains pending.
-2. macOS UAT passed over TextEdit. The equivalent Windows Notepad check remains pending.
-3. macOS UAT passed repeated Settings open/close, conflict rollback, and Retry behavior.
-4. macOS full-screen/Space behavior passed in the prior UAT; Windows borderless versus exclusive full-screen observations remain pending.
+1. macOS UAT passed on the current device, including `Cmd+Shift+A`; the user confirmed the equivalent Windows activation check passed.
+2. macOS UAT passed over TextEdit; the user confirmed the equivalent Windows Notepad click-through check passed.
+3. macOS UAT passed repeated Settings open/close, conflict rollback, and Retry behavior; the user confirmed the Windows flow passed.
+4. macOS full-screen/Space behavior passed in the prior UAT; the user confirmed the Windows full-screen and permission checks passed.
 
-See `docs/support-matrix.md` for the evidence table. The phase must not advance until the two device rows are filled.
+See `docs/support-matrix.md` for the evidence table. Windows OS build details and a separate recording/log were not captured in this session.
