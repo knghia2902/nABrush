@@ -415,4 +415,33 @@ mod tests {
         assert!(coalescer.flush(9).is_none());
         assert_eq!(coalescer.flush(13), Some(second));
     }
+
+    #[test]
+    fn topology_diff_tracks_add_remove_and_in_place_updates_by_identity() {
+        let left = descriptor("left", -1920.0, 0.0, 2.0, DisplayOrientation::Degrees0);
+        let main = descriptor("main", 0.0, 0.0, 1.0, DisplayOrientation::Degrees0);
+        let rotated_main = descriptor("main", 0.0, 0.0, 1.5, DisplayOrientation::Degrees90);
+        let previous = DisplaySnapshot {
+            displays: BTreeMap::from([(left.id.clone(), left), (main.id.clone(), main)]),
+        };
+        let next = DisplaySnapshot {
+            displays: BTreeMap::from([
+                (DisplayId::new("main").unwrap(), rotated_main.clone()),
+                (
+                    DisplayId::new("right").unwrap(),
+                    descriptor("right", 1920.0, 0.0, 1.0, DisplayOrientation::Degrees0),
+                ),
+            ]),
+        };
+        let diff = previous.diff(&next).unwrap();
+        assert_eq!(diff.added.len(), 1);
+        assert_eq!(diff.added[0].id.as_str(), "right");
+        assert_eq!(diff.removed, vec![DisplayId::new("left").unwrap()]);
+        assert_eq!(diff.updated.len(), 1);
+        assert_eq!(diff.updated[0].before.id, diff.updated[0].after.id);
+        assert_eq!(
+            diff.updated[0].after.orientation,
+            DisplayOrientation::Degrees90
+        );
+    }
 }
