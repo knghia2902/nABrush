@@ -8,10 +8,10 @@ updated: 2026-09-10
 
 ## Current Test
 
-number: 2
-name: Drawing, click-through, Escape, and scene restoration
+number: 3
+name: Settings close-to-hide and recovery actions
 expected: |
-  Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
+  Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
 awaiting: user response
 
 ## Tests
@@ -26,7 +26,10 @@ retest: "Gap closure plan 01-08 added a discoverable tray icon and documented th
 
 ### 2. Drawing, click-through, Escape, and scene restoration
 expected: Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
-result: [pending]
+result: issue
+reported: "ok"
+severity: major
+note: "User confirmed the current build lacks a drawing toolbar/canvas and a Click-through control, so this test cannot be completed."
 
 ### 3. Settings close-to-hide and recovery actions
 expected: Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
@@ -40,8 +43,8 @@ result: [pending]
 
 total: 4
 passed: 1
-issues: 0
-pending: 3
+issues: 1
+pending: 2
 skipped: 0
 blocked: 0
 
@@ -81,3 +84,19 @@ blocked: 0
     - "Manual launch must keep the Vite dev server available at http://localhost:1420; a raw debug binary without Vite loads about:blank."
     - "The overlay webview needs a visible activation surface/state separate from the settings window."
   diagnosis: "The user interacted with a raw debug process while no Vite server was serving the configured devUrl, so Settings loaded about:blank. App currently mounts SettingsPanel in every window and only shows a transient badge for overlay activation, making Show look inert even after the correct dev server is running."
+
+- gap_id: G-01-3
+  truth: "Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show."
+  status: failed
+  reason: "User confirmed the test cannot be completed because the current build has no drawing toolbar/canvas or Click-through control."
+  severity: major
+  test: 2
+  artifacts:
+    - "src/App.tsx"
+    - "src/styles.css"
+    - "src/state/overlay.ts"
+    - "src-tauri/src/main.rs"
+  missing:
+    - "A user-facing drawing surface/tool control that commits a mark to the retained scene."
+    - "A user-facing Click-through action wired to the native controller."
+  diagnosis: "Phase 1 contains native mode seams and reducer fixtures, but the shipped webview has no pointer renderer or toolbar and the production shortcut handler only registers visibility, so manual drawing and click-through cannot be exercised."
