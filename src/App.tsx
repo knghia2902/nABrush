@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { SettingsPanel } from "./components/SettingsPanel";
 
 type OverlayMode = "Hidden" | "VisibleInteractive";
 
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <main aria-label="nABrush overlay" data-mode={mode}>
       {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}
+      <SettingsPanel />
     </main>
   );
 }

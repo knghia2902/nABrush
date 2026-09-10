@@ -3,6 +3,8 @@
 mod controller;
 mod mode_schema;
 mod platform;
+mod shortcut;
+mod startup;
 mod tracer;
 mod tray;
 
@@ -22,12 +24,20 @@ fn toggle_shortcut() -> Shortcut {
 
 fn setup<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     app.manage(AppController::default());
+    app.manage(shortcut::ShortcutRegistry::default());
+    app.manage(startup::StartupAdapter::default());
     tray::install(app.handle())?;
     Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            shortcut::get_shortcut_bindings,
+            shortcut::set_shortcut_binding,
+            startup::get_launch_at_login,
+            startup::set_launch_at_login,
+        ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_shortcuts([toggle_shortcut()])

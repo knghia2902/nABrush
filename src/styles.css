@@ -1,0 +1,6 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; }
+body { margin: 0; background: transparent; }
+main { min-height: 100vh; pointer-events: none; }
+.settings-panel { pointer-events: auto; max-width: 28rem; margin: 2rem auto; padding: 1.5rem; border-radius: 0.75rem; background: rgba(255, 255, 255, 0.96); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18); }
+.settings-panel label { display: flex; justify-content: space-between; gap: 1rem; margin: 0.75rem 0; }
+.settings-panel input:not([type="checkbox"]) { min-width: 14rem; }
