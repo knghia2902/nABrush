@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod controller;
+mod display;
 mod errors;
 mod mode_schema;
 mod platform;
@@ -36,7 +37,9 @@ fn test_dispatch_action(
 
     #[cfg(debug_assertions)]
     {
-        state.dispatch_action(&app, action).map_err(|error| error.to_string())?;
+        state
+            .dispatch_action(&app, action)
+            .map_err(|error| error.to_string())?;
         let mode = match state.snapshot().mode {
             controller::OverlayMode::Hidden => "Hidden",
             controller::OverlayMode::VisibleInteractive => "VisibleInteractive",
@@ -59,7 +62,9 @@ fn test_show_settings(
 
     #[cfg(debug_assertions)]
     {
-        state.show_settings(&app).map_err(|error| error.to_string())?;
+        state
+            .show_settings(&app)
+            .map_err(|error| error.to_string())?;
         Ok("settings".into())
     }
 }

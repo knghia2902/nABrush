@@ -1,11 +1,46 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import type { OverlayMode, SceneItem, StrokePoint, StrokeSceneItem } from "../types/overlay";
+import type { CanonicalPoint, DisplayOrientation, DisplayViewport, OverlayMode, SceneItem, StrokePoint, StrokeSceneItem } from "../types/overlay";
 
 export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
 
-export function normalizePointerPath(samples: readonly PointerSample[], rect: SurfaceRect): StrokePoint[] {
+export function viewportSize(viewport: DisplayViewport): { width: number; height: number } {
+  const { width, height } = viewport.logicalSize;
+  return viewport.orientation === "degrees90" || viewport.orientation === "degrees270"
+    ? { width: height, height: width }
+    : { width, height };
+}
+
+function rotatePoint(point: CanonicalPoint, size: { width: number; height: number }, orientation: DisplayOrientation): CanonicalPoint {
+  switch (orientation) {
+    case "degrees90": return { x: size.height - point.y, y: point.x };
+    case "degrees180": return { x: size.width - point.x, y: size.height - point.y };
+    case "degrees270": return { x: point.y, y: size.width - point.x };
+    case "degrees0": return point;
+  }
+}
+
+function inverseRotatePoint(point: CanonicalPoint, size: { width: number; height: number }, orientation: DisplayOrientation): CanonicalPoint {
+  switch (orientation) {
+    case "degrees90": return { x: point.y, y: size.height - point.x };
+    case "degrees180": return { x: size.width - point.x, y: size.height - point.y };
+    case "degrees270": return { x: size.width - point.y, y: point.x };
+    case "degrees0": return point;
+  }
+}
+
+export function canonicalToViewport(point: CanonicalPoint, viewport: DisplayViewport): CanonicalPoint {
+  const local = { x: point.x - viewport.origin.x, y: point.y - viewport.origin.y };
+  return rotatePoint(local, viewport.logicalSize, viewport.orientation);
+}
+
+export function viewportToCanonical(point: CanonicalPoint, viewport: DisplayViewport): CanonicalPoint {
+  const local = inverseRotatePoint(point, viewport.logicalSize, viewport.orientation);
+  return { x: local.x + viewport.origin.x, y: local.y + viewport.origin.y };
+}
+
+export function normalizePointerPath(samples: readonly PointerSample[], rect: SurfaceRect, viewport?: DisplayViewport): StrokePoint[] {
   if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) {
     return [];
   }
@@ -14,7 +49,9 @@ export function normalizePointerPath(samples: readonly PointerSample[], rect: Su
     const x = (sample.clientX - rect.left) / rect.width;
     const y = (sample.clientY - rect.top) / rect.height;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
-    return [{ x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }];
+    if (!viewport) return [{ x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }];
+    const size = viewportSize(viewport);
+    return [viewportToCanonical({ x: Math.min(size.width, Math.max(0, x * size.width)), y: Math.min(size.height, Math.max(0, y * size.height)) }, viewport)];
   });
 }
 
@@ -35,14 +72,20 @@ export function drawScene(
   scene: readonly SceneItem[],
   width: number,
   height: number,
+  viewport?: DisplayViewport,
 ) {
   context.clearRect(0, 0, width, height);
   for (const item of scene) {
     if (item.kind !== "stroke" || item.points.length < 2) continue;
     context.beginPath();
     const [first, ...rest] = item.points;
-    context.moveTo(first.x * width, first.y * height);
-    for (const point of rest) context.lineTo(point.x * width, point.y * height);
+    const toViewport = viewport ? (point: CanonicalPoint) => canonicalToViewport(point, viewport) : (point: CanonicalPoint) => ({ x: point.x * width, y: point.y * height });
+    const firstPoint = toViewport(first);
+    context.moveTo(viewport ? firstPoint.x : firstPoint.x, viewport ? firstPoint.y : firstPoint.y);
+    for (const point of rest) {
+      const viewportPoint = toViewport(point);
+      context.lineTo(viewportPoint.x, viewportPoint.y);
+    }
     context.stroke();
   }
 }
@@ -50,10 +93,11 @@ export function drawScene(
 type Props = {
   mode: OverlayMode;
   scene: readonly SceneItem[];
+  viewport: DisplayViewport;
   onCommitStroke: (stroke: StrokeSceneItem) => void;
 };
 
-export function OverlaySurface({ mode, scene, onCommitStroke }: Props) {
+export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerIdRef = useRef<number | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
@@ -63,9 +107,10 @@ export function OverlaySurface({ mode, scene, onCommitStroke }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(rect.width * dpr));
-    const height = Math.max(1, Math.round(rect.height * dpr));
+    const dpr = viewport.scaleFactor;
+    const size = viewportSize(viewport);
+    const width = Math.max(1, Math.round(size.width * dpr));
+    const height = Math.max(1, Math.round(size.height * dpr));
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
     const context = canvas.getContext("2d");
@@ -75,8 +120,8 @@ export function OverlaySurface({ mode, scene, onCommitStroke }: Props) {
     context.lineWidth = 4;
     context.lineCap = "round";
     context.lineJoin = "round";
-    drawScene(context, scene, rect.width, rect.height);
-  }, [scene]);
+    drawScene(context, scene, size.width, size.height, viewport);
+  }, [scene, viewport]);
 
   useEffect(() => {
     redraw();
@@ -111,7 +156,7 @@ export function OverlaySurface({ mode, scene, onCommitStroke }: Props) {
     samplesRef.current = [];
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     const rect = canvas.getBoundingClientRect();
-    const points = normalizePointerPath(samples, rect);
+    const points = normalizePointerPath(samples, rect, viewport);
     if (points.length < 2) return;
     nextStrokeIdRef.current += 1;
     onCommitStroke(createStroke(`stroke-${nextStrokeIdRef.current}`, points));
@@ -123,7 +168,9 @@ export function OverlaySurface({ mode, scene, onCommitStroke }: Props) {
       aria-label="Annotation surface"
       className="overlay-surface"
       data-overlay-canvas="true"
-      style={{ pointerEvents: canvasPointerEvents(mode) }}
+      style={{ pointerEvents: canvasPointerEvents(mode), width: viewportSize(viewport).width, height: viewportSize(viewport).height }}
+      width={Math.max(1, Math.round(viewportSize(viewport).width * viewport.scaleFactor))}
+      height={Math.max(1, Math.round(viewportSize(viewport).height * viewport.scaleFactor))}
       onPointerDown={beginStroke}
       onPointerMove={moveStroke}
       onPointerUp={endStroke}

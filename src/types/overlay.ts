@@ -12,6 +12,15 @@ export const SHORTCUT_ACTIONS = [
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
 export type StrokePoint = { x: number; y: number };
+export type CanonicalPoint = StrokePoint;
+export type DisplayOrientation = "degrees0" | "degrees90" | "degrees180" | "degrees270";
+export type DisplayViewport = {
+  id: string;
+  origin: CanonicalPoint;
+  logicalSize: { width: number; height: number };
+  scaleFactor: number;
+  orientation: DisplayOrientation;
+};
 export type StrokeSceneItem = { id: string; kind: "stroke"; points: readonly StrokePoint[] };
 export type SceneItem = StrokeSceneItem | { id: string; kind: "shape" | "text" };
 export type ModeEffect = "show" | "hide" | "interactive" | "click-through" | "retry";
