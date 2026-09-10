@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import type {
   AnnotationStyle,
   AnnotationTool,
@@ -18,9 +18,20 @@ import type {
   StrokePoint,
   StrokeSceneItem,
   StrokeTool,
+  TextDraft,
+  TextSceneItem,
 } from "../types/overlay";
 import { DEFAULT_PEN_STYLE } from "../types/overlay";
-import { isGeometryDragValid, normalizeShapeBounds } from "../state/annotation";
+import {
+  HIT_TEST_PADDING,
+  TEXT_LINE_HEIGHT,
+  createTextItem,
+  findTopmostHit,
+  isGeometryDragValid,
+  normalizeShapeBounds,
+  textBounds,
+  textDraftTransition,
+} from "../state/annotation";
 
 export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
@@ -34,7 +45,7 @@ function isStrokeTool(tool: AnnotationTool): tool is StrokeTool {
 }
 
 type CanvasRenderContext = Pick<CanvasRenderingContext2D, "clearRect" | "beginPath" | "moveTo" | "lineTo" | "stroke"> &
-  Partial<Pick<CanvasRenderingContext2D, "closePath" | "fill" | "rect" | "ellipse" | "save" | "restore" | "strokeStyle" | "fillStyle" | "lineWidth" | "lineCap" | "lineJoin" | "globalAlpha">> & {
+  Partial<Pick<CanvasRenderingContext2D, "closePath" | "fill" | "rect" | "ellipse" | "fillText" | "measureText" | "save" | "restore" | "strokeStyle" | "fillStyle" | "lineWidth" | "lineCap" | "lineJoin" | "globalAlpha" | "font" | "textBaseline">> & {
     globalCompositeOperation?: string;
   };
 
@@ -354,6 +365,80 @@ export function drawShapeGeometry(
   context.restore?.();
 }
 
+function textFont(style: AnnotationStyle): string {
+  return `${style.textSize}px system-ui, sans-serif`;
+}
+
+function canvasTextMetric(context: CanvasRenderContext, line: string, style: AnnotationStyle): number {
+  context.font = textFont(style);
+  return context.measureText?.(line)?.width ?? line.length * style.textSize * 0.6;
+}
+
+export function drawTextItem(
+  context: CanvasRenderContext,
+  item: TextSceneItem,
+  width: number,
+  height: number,
+  viewport?: DisplayViewport,
+) {
+  const anchor = viewportPoint(item.anchor, width, height, viewport);
+  context.save?.();
+  context.font = textFont(item.style);
+  context.textBaseline = "top";
+  context.fillStyle = item.style.color;
+  context.globalAlpha = item.style.opacity;
+  item.text.split("\n").forEach((line, index) => {
+    context.fillText?.(line, anchor.x, anchor.y + index * item.style.textSize * TEXT_LINE_HEIGHT);
+  });
+  context.globalAlpha = 1;
+  context.restore?.();
+}
+
+function drawHitHighlight(
+  context: CanvasRenderContext,
+  item: SceneItem,
+  width: number,
+  height: number,
+  viewport: DisplayViewport | undefined,
+) {
+  context.save?.();
+  context.strokeStyle = "#38bdf8";
+  context.lineWidth = 2;
+  context.globalAlpha = 0.9;
+  context.globalCompositeOperation = "source-over";
+  context.beginPath();
+  if (item.kind === "stroke") {
+    const first = item.points[0];
+    if (first) {
+      const point = viewportPoint(first, width, height, viewport);
+      context.moveTo(point.x, point.y);
+      item.points.slice(1).forEach((value) => {
+        const next = viewportPoint(value, width, height, viewport);
+        context.lineTo(next.x, next.y);
+      });
+      context.stroke();
+    }
+  } else if (item.kind === "shape" && item.geometry.type === "line") {
+    const start = viewportPoint(item.geometry.start, width, height, viewport);
+    const end = viewportPoint(item.geometry.end, width, height, viewport);
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+  } else if (item.kind === "shape" && (item.geometry.type === "rectangle" || item.geometry.type === "ellipse")) {
+    drawShapePath(context, item.geometry, width, height, viewport);
+    context.stroke();
+  } else if (item.kind === "text") {
+    const metrics = (line: string, style: AnnotationStyle) => canvasTextMetric(context, line, style);
+    const bounds = textBounds(item, metrics);
+    const topLeft = viewportPoint({ x: bounds.x - HIT_TEST_PADDING, y: bounds.y - HIT_TEST_PADDING }, width, height, viewport);
+    const bottomRight = viewportPoint({ x: bounds.x + bounds.width + HIT_TEST_PADDING, y: bounds.y + bounds.height + HIT_TEST_PADDING }, width, height, viewport);
+    context.rect?.(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+    context.stroke();
+  }
+  context.globalAlpha = 1;
+  context.restore?.();
+}
+
 export function drawScene(
   context: CanvasRenderContext,
   scene: readonly SceneItem[],
@@ -361,6 +446,7 @@ export function drawScene(
   height: number,
   viewport?: DisplayViewport,
   transientSceneItem?: SceneItem | null,
+  hoveredItemId?: string | null,
 ) {
   context.clearRect(0, 0, width, height);
   for (const item of transientSceneItem ? [...scene, transientSceneItem] : scene) {
@@ -368,6 +454,11 @@ export function drawScene(
     if (item.kind === "shape" && item.tool === "line") drawLineGeometry(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "arrow") drawArrowGeometry(context, item, width, height, viewport);
     if (item.kind === "shape" && (item.tool === "rectangle" || item.tool === "ellipse")) drawShapeGeometry(context, item, width, height, viewport);
+    if (item.kind === "text") drawTextItem(context, item, width, height, viewport);
+  }
+  if (hoveredItemId) {
+    const hovered = scene.find((item) => item.id === hoveredItemId);
+    if (hovered) drawHitHighlight(context, hovered, width, height, viewport);
   }
 }
 
@@ -377,17 +468,46 @@ type Props = {
   viewport: DisplayViewport;
   activeTool: AnnotationTool;
   toolStyle: AnnotationStyle;
+  textDraft: TextDraft | null;
+  onPlaceTextDraft: (anchor: CanonicalPoint, style: AnnotationStyle) => void;
+  onUpdateTextDraft: (value: string) => void;
+  onCancelTextDraft: () => void;
   onCommitSceneItem: (item: SceneItem) => void;
+  onEraseSceneItem: (id: string) => void;
 };
 
-export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, onCommitSceneItem }: Props) {
+export function OverlaySurface({
+  mode,
+  scene,
+  viewport,
+  activeTool,
+  toolStyle,
+  textDraft,
+  onPlaceTextDraft,
+  onUpdateTextDraft,
+  onCancelTextDraft,
+  onCommitSceneItem,
+  onEraseSceneItem,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textEditorRef = useRef<HTMLTextAreaElement>(null);
   const pointerIdRef = useRef<number | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
   const gestureToolRef = useRef<AnnotationTool>(activeTool);
   const nextItemIdRef = useRef(0);
   const [transientSceneItem, setTransientSceneItem] = useState<SceneItem | null>(null);
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+
+  const measureTextForHitTest = useCallback((line: string, style: AnnotationStyle): number => {
+    const context = canvasRef.current?.getContext("2d");
+    if (!context) return line.length * style.textSize * 0.6;
+    context.save();
+    context.font = textFont(style);
+    const width = context.measureText(line).width;
+    context.restore();
+    return width;
+  }, []);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -400,8 +520,8 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
     const context = canvas.getContext("2d");
     if (!context) return;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawScene(context, scene, size.width, size.height, viewport, transientSceneItem);
-  }, [scene, transientSceneItem, viewport]);
+    drawScene(context, scene, size.width, size.height, viewport, transientSceneItem, hoveredItemId);
+  }, [hoveredItemId, scene, transientSceneItem, viewport]);
 
   useEffect(() => {
     redraw();
@@ -423,27 +543,57 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
     pointerIdRef.current = null;
     samplesRef.current = [];
     setTransientSceneItem(null);
+    setHoveredItemId(null);
   }, []);
 
   useEffect(() => {
     if (mode !== "VisibleInteractive" || (!isStrokeTool(activeTool) && !isShapeTool(activeTool))) cancelGesture();
-  }, [activeTool, cancelGesture, mode]);
+    if (mode !== "VisibleInteractive" || activeTool !== "text") onCancelTextDraft();
+  }, [activeTool, cancelGesture, mode, onCancelTextDraft]);
+
+  useEffect(() => {
+    if (textDraft) textEditorRef.current?.focus();
+  }, [textDraft]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") cancelGesture();
     };
-    const handleBlur = () => cancelGesture();
+    const handleBlur = () => {
+      cancelGesture();
+      onCancelTextDraft();
+    };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("blur", handleBlur);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("blur", handleBlur);
     };
-  }, [cancelGesture]);
+  }, [cancelGesture, onCancelTextDraft]);
+
+  const eventPoint = (event: ReactPointerEvent<HTMLCanvasElement>): CanonicalPoint | null => {
+    const point = normalizePointerPath([event], event.currentTarget.getBoundingClientRect(), viewport)[0];
+    return point ?? null;
+  };
 
   const beginGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (mode !== "VisibleInteractive" || event.button !== 0 || (!isStrokeTool(activeTool) && !isShapeTool(activeTool))) return;
+    if (mode !== "VisibleInteractive" || event.button !== 0) return;
+    if (activeTool === "text") {
+      if (!textDraft) {
+        const point = eventPoint(event);
+        if (point) onPlaceTextDraft(point, { ...toolStyle });
+      }
+      return;
+    }
+    if (activeTool === "eraser") {
+      const point = eventPoint(event);
+      if (!point) return;
+      const targetId = findTopmostHit(scene, point, { hitPadding: HIT_TEST_PADDING, measureText: measureTextForHitTest });
+      setHoveredItemId(targetId);
+      if (targetId) onEraseSceneItem(targetId);
+      return;
+    }
+    if (!isStrokeTool(activeTool) && !isShapeTool(activeTool)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
@@ -453,6 +603,12 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   };
 
   const moveGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (mode !== "VisibleInteractive") return;
+    if (activeTool === "eraser") {
+      const point = eventPoint(event);
+      setHoveredItemId(point ? findTopmostHit(scene, point, { hitPadding: HIT_TEST_PADDING, measureText: measureTextForHitTest }) : null);
+      return;
+    }
     if (pointerIdRef.current !== event.pointerId) return;
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
     const rect = event.currentTarget.getBoundingClientRect();
@@ -492,19 +648,62 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
     onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool));
   };
 
+  const handleTextKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (!textDraft) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCancelTextDraft();
+      return;
+    }
+    if (event.key !== "Enter") return;
+    if (event.nativeEvent.isComposing) return;
+    if (event.shiftKey) {
+      event.preventDefault();
+      const next = textDraftTransition(textDraft, { type: "insert-newline" });
+      if (next) onUpdateTextDraft(next.value);
+      return;
+    }
+    const next = textDraftTransition(textDraft, { type: "commit", isComposing: false });
+    if (next !== null) return;
+    const item = createTextItem(`text-${nextItemIdRef.current + 1}`, textDraft);
+    nextItemIdRef.current += 1;
+    onCancelTextDraft();
+    onCommitSceneItem(item);
+  };
+
+  const draftPosition = textDraft ? viewportPoint(textDraft.anchor, viewportSize(viewport).width, viewportSize(viewport).height, viewport) : null;
+
   return (
-    <canvas
-      ref={canvasRef}
-      aria-label="Annotation surface"
-      className="overlay-surface"
-      data-overlay-canvas="true"
-      style={{ pointerEvents: canvasPointerEvents(mode), width: viewportSize(viewport).width, height: viewportSize(viewport).height }}
-      width={Math.max(1, Math.round(viewportSize(viewport).width * viewport.scaleFactor))}
-      height={Math.max(1, Math.round(viewportSize(viewport).height * viewport.scaleFactor))}
-      onPointerDown={beginGesture}
-      onPointerMove={moveGesture}
-      onPointerUp={endGesture}
-      onPointerCancel={cancelGesture}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        aria-label="Annotation surface"
+        className="overlay-surface"
+        data-overlay-canvas="true"
+        style={{ pointerEvents: canvasPointerEvents(mode), width: viewportSize(viewport).width, height: viewportSize(viewport).height }}
+        width={Math.max(1, Math.round(viewportSize(viewport).width * viewport.scaleFactor))}
+        height={Math.max(1, Math.round(viewportSize(viewport).height * viewport.scaleFactor))}
+        onPointerDown={beginGesture}
+        onPointerMove={moveGesture}
+        onPointerUp={endGesture}
+        onPointerCancel={cancelGesture}
+        onPointerLeave={() => { if (activeTool === "eraser") setHoveredItemId(null); }}
+      />
+      {textDraft && draftPosition && mode === "VisibleInteractive" ? (
+        <textarea
+          ref={textEditorRef}
+          aria-label="Text draft"
+          className="text-draft-editor"
+          data-text-draft="true"
+          data-scene-excluded="true"
+          value={textDraft.value}
+          onChange={(event) => onUpdateTextDraft(event.target.value)}
+          onKeyDown={handleTextKeyDown}
+          onBlur={onCancelTextDraft}
+          rows={1}
+          style={{ left: draftPosition.x, top: draftPosition.y, color: textDraft.style.color, fontSize: textDraft.style.textSize }}
+        />
+      ) : null}
+    </>
   );
 }

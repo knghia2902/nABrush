@@ -10,6 +10,7 @@ import {
   TOOL_ORDER,
   createInitialAnnotationState,
   selectAnnotationTool,
+  textDraftTransition,
   updateToolStyle,
 } from "./state/annotation";
 import { DEFAULT_PEN_STYLE, normalizeDisplayViewport } from "./types/overlay";
@@ -174,6 +175,29 @@ export default function App() {
       });
   };
 
+  const placeTextDraft = (anchor: { x: number; y: number }, style: AnnotationStyle) => {
+    setAnnotationState((state) => ({
+      ...state,
+      textDraft: textDraftTransition(state.textDraft, { type: "place", anchor, style }),
+    }));
+  };
+  const updateTextDraft = (value: string) => {
+    setAnnotationState((state) => ({
+      ...state,
+      textDraft: textDraftTransition(state.textDraft, { type: "update", value }),
+    }));
+  };
+  const cancelTextDraft = () => {
+    setAnnotationState((state) => ({ ...state, textDraft: null }));
+  };
+  const eraseSceneItem = (id: string) => {
+    void invoke<SceneSnapshot>("erase_scene_item", { id })
+      .then((snapshot) => {
+        setSceneId(snapshot.sceneId);
+        setScene(snapshot.items);
+      });
+  };
+
   const activeTool = annotationState.activeTool;
   const toolStyle = annotationState.stylesByTool[activeTool];
   const selectTool = (tool: AnnotationTool) => {
@@ -205,7 +229,12 @@ export default function App() {
             viewport={viewport}
             activeTool={activeTool}
             toolStyle={toolStyle ?? DEFAULT_PEN_STYLE}
+            textDraft={annotationState.textDraft}
+            onPlaceTextDraft={placeTextDraft}
+            onUpdateTextDraft={updateTextDraft}
+            onCancelTextDraft={cancelTextDraft}
             onCommitSceneItem={commitSceneItem}
+            onEraseSceneItem={eraseSceneItem}
           />
           <AnnotationToolbar
             activeTool={activeTool}

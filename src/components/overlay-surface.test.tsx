@@ -10,6 +10,7 @@ import {
   createStroke,
   drawShapeGeometry,
   drawScene,
+  drawTextItem,
   normalizePointerPath,
   transientGeometryForGesture,
   transientSceneItemForGesture,
@@ -304,5 +305,43 @@ describe("OverlaySurface scene helpers", () => {
     expect(context.lineWidth).toBe(12);
     expect(context.globalCompositeOperation).toBe("source-over");
     expect(calls).toEqual(["clear", "begin", "move", "line", "stroke"]);
+  });
+
+  it("renders committed text as measured Canvas lines with no DOM scene item", () => {
+    const lines: Array<[string, number, number]> = [];
+    const context = {
+      clearRect: () => undefined,
+      beginPath: () => undefined,
+      moveTo: () => undefined,
+      lineTo: () => undefined,
+      stroke: () => undefined,
+      fillText: (text: string, x: number, y: number) => lines.push([text, x, y]),
+      save: () => undefined,
+      restore: () => undefined,
+      fillStyle: "",
+      font: "",
+      textBaseline: "alphabetic" as CanvasTextBaseline,
+      globalAlpha: 1,
+    };
+    const item = {
+      id: "text-1",
+      kind: "text" as const,
+      tool: "text" as const,
+      anchor: { x: 40, y: 50 },
+      text: "first\nsecond",
+      style: { color: "#334155", opacity: 0.8, width: 2, fill: "none" as const, fillColor: "#334155", fillOpacity: 0.18, textSize: 20 },
+    };
+
+    drawTextItem(context, item, 800, 600, {
+      id: "test",
+      origin: { x: 0, y: 0 },
+      logicalSize: { width: 800, height: 600 },
+      scaleFactor: 1,
+      orientation: "degrees0",
+    });
+
+    expect(lines).toEqual([["first", 40, 50], ["second", 40, 74]]);
+    expect(context.font).toBe("20px system-ui, sans-serif");
+    expect(context.textBaseline).toBe("top");
   });
 });

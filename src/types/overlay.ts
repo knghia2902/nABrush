@@ -101,6 +101,12 @@ export type TextSceneItem = Readonly<{
   style: AnnotationStyle;
 }>;
 
+export type TextDraft = Readonly<{
+  anchor: CanonicalPoint;
+  value: string;
+  style: AnnotationStyle;
+}>;
+
 export type SceneItem = StrokeSceneItem | ShapeSceneItem | TextSceneItem;
 export type SceneSnapshot = { sceneId: string; items: readonly SceneItem[] };
 export type SceneEventPayload = SceneSnapshot & {
