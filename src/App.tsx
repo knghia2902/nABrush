@@ -6,8 +6,8 @@ import { ModeBadge } from "./components/ModeBadge";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ErrorBadge } from "./components/ErrorBadge";
 import { OverlaySurface } from "./components/OverlaySurface";
-import { normalizeDisplayViewport } from "./types/overlay";
-import type { DisplayViewport, OverlayMode, SceneEventPayload, SceneItem, SceneSnapshot, StrokeSceneItem } from "./types/overlay";
+import { DEFAULT_PEN_STYLE, normalizeDisplayViewport } from "./types/overlay";
+import type { DisplayViewport, OverlayMode, SceneEventPayload, SceneItem, SceneSnapshot } from "./types/overlay";
 
 const DEFAULT_VIEWPORT: DisplayViewport = {
   id: "default",
@@ -56,8 +56,8 @@ export default function App() {
     return () => { disposeMode?.(); disposeViewport?.(); disposeScene?.(); };
   }, [isSettingsWindow, windowLabel]);
 
-  const commitStroke = (stroke: StrokeSceneItem) => {
-    void invoke<SceneSnapshot>("commit_scene_item", { item: stroke })
+  const commitSceneItem = (item: SceneItem) => {
+    void invoke<SceneSnapshot>("commit_scene_item", { item })
       .then((snapshot) => {
         setSceneId(snapshot.sceneId);
         setScene(snapshot.items);
@@ -80,7 +80,14 @@ export default function App() {
         <SettingsPanel />
       ) : (
         <>
-          <OverlaySurface mode={mode} scene={scene} viewport={viewport} onCommitStroke={commitStroke} />
+          <OverlaySurface
+            mode={mode}
+            scene={scene}
+            viewport={viewport}
+            activeTool="pen"
+            toolStyle={DEFAULT_PEN_STYLE}
+            onCommitSceneItem={commitSceneItem}
+          />
           {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}
           <ModeBadge mode={mode} viewport={viewport} />
           <ErrorBadge mode={mode} viewport={viewport} />

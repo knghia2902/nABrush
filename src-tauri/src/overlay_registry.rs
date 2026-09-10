@@ -37,16 +37,113 @@ impl fmt::Display for RegistryError {
 impl std::error::Error for RegistryError {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnnotationFill {
+    None,
+    Solid,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StrokeTool {
+    Pen,
+    Highlighter,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShapeTool {
+    Line,
+    Arrow,
+    Rectangle,
+    Ellipse,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScenePoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum SceneGeometry {
+    Line { start: ScenePoint, end: ScenePoint },
+    Rectangle { x: f64, y: f64, width: f64, height: f64 },
+    Ellipse { center: ScenePoint, radius_x: f64, radius_y: f64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationStyle {
+    pub color: String,
+    pub opacity: f64,
+    pub width: f64,
+    pub fill: AnnotationFill,
+    pub fill_color: String,
+    pub fill_opacity: f64,
+    pub text_size: f64,
+}
+
+fn default_pen_style() -> AnnotationStyle {
+    AnnotationStyle {
+        color: "#ef4444".into(),
+        opacity: 0.92,
+        width: 2.0,
+        fill: AnnotationFill::None,
+        fill_color: "#ef4444".into(),
+        fill_opacity: 0.18,
+        text_size: 24.0,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum SceneItem {
+    #[serde(rename = "stroke")]
+    Stroke {
+        id: String,
+        tool: StrokeTool,
+        points: Vec<ScenePoint>,
+        style: AnnotationStyle,
+    },
+    #[serde(rename = "shape")]
+    Shape {
+        id: String,
+        tool: ShapeTool,
+        geometry: SceneGeometry,
+        style: AnnotationStyle,
+    },
+    #[serde(rename = "text")]
+    Text {
+        id: String,
+        tool: String,
+        anchor: ScenePoint,
+        text: String,
+        style: AnnotationStyle,
+    },
+}
+
+impl SceneItem {
+    fn id(&self) -> &str {
+        match self {
+            Self::Stroke { id, .. } | Self::Shape { id, .. } | Self::Text { id, .. } => id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneSnapshot {
     pub scene_id: String,
-    pub items: Vec<Value>,
+    pub items: Vec<SceneItem>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneStore {
     scene_id: String,
-    items: Vec<Value>,
+    items: Vec<SceneItem>,
 }
 
 impl Default for SceneStore {
@@ -78,9 +175,16 @@ impl SceneStore {
     }
 
     pub fn commit_scene_item(&mut self, item: Value) -> Result<SceneSnapshot, RegistryError> {
-        validate_scene_item(&item)?;
-        let id = item.get("id").and_then(Value::as_str).expect("validated scene item id");
-        if self.items.iter().any(|existing| existing.get("id").and_then(Value::as_str) == Some(id)) {
+        // Replayed IDs are idempotent even when an old client resends a legacy
+        // or otherwise incomplete copy of an item already retained.
+        if let Some(id) = item.get("id").and_then(Value::as_str) {
+            if self.items.iter().any(|existing| existing.id() == id) {
+                return Ok(self.snapshot());
+            }
+        }
+        let item = normalize_scene_item(item)?;
+        let id = item.id();
+        if self.items.iter().any(|existing| existing.id() == id) {
             return Ok(self.snapshot());
         }
         self.items.push(item);
@@ -90,25 +194,122 @@ impl SceneStore {
     pub fn clear(&mut self) { self.items.clear(); }
 }
 
-fn validate_scene_item(item: &Value) -> Result<(), RegistryError> {
-    let object = item.as_object().ok_or_else(|| RegistryError::InvalidSceneItem("item must be an object".into()))?;
-    let id = object.get("id").and_then(Value::as_str).ok_or_else(|| RegistryError::InvalidSceneItem("item id must be a string".into()))?;
+fn normalize_scene_item(mut item: Value) -> Result<SceneItem, RegistryError> {
+    let object = item.as_object_mut().ok_or_else(|| RegistryError::InvalidSceneItem("item must be an object".into()))?;
+    let kind = object.get("kind").and_then(Value::as_str).ok_or_else(|| RegistryError::InvalidSceneItem("item kind must be a string".into()))?.to_owned();
+    if kind == "stroke" {
+        object.entry("tool").or_insert_with(|| Value::String("pen".into()));
+        object.entry("style").or_insert_with(|| serde_json::to_value(default_pen_style()).expect("default style serializes"));
+    }
+    validate_scene_keys(object, &kind)?;
+    let parsed = serde_json::from_value::<SceneItem>(item)
+        .map_err(|error| RegistryError::InvalidSceneItem(format!("typed payload is invalid: {error}")))?;
+    validate_typed_scene_item(&parsed)?;
+    Ok(parsed)
+}
+
+fn validate_scene_keys(object: &serde_json::Map<String, Value>, kind: &str) -> Result<(), RegistryError> {
+    let allowed = match kind {
+        "stroke" => ["id", "kind", "tool", "points", "style"].as_slice(),
+        "shape" => ["id", "kind", "tool", "geometry", "style"].as_slice(),
+        "text" => ["id", "kind", "tool", "anchor", "text", "style"].as_slice(),
+        _ => return Err(RegistryError::InvalidSceneItem("item kind is unsupported".into())),
+    };
+    if let Some(key) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
+        return Err(RegistryError::InvalidSceneItem(format!("unknown field: {key}")));
+    }
+    Ok(())
+}
+
+fn validate_id(id: &str) -> Result<(), RegistryError> {
     if id.trim().is_empty() || id.len() > 256 {
         return Err(RegistryError::InvalidSceneItem("item id is empty or too long".into()));
     }
-    let kind = object.get("kind").and_then(Value::as_str).ok_or_else(|| RegistryError::InvalidSceneItem("item kind must be a string".into()))?;
-    if !matches!(kind, "stroke" | "shape" | "text") {
-        return Err(RegistryError::InvalidSceneItem("item kind is unsupported".into()));
-    }
-    validate_finite_json(item)
+    Ok(())
 }
 
-fn validate_finite_json(value: &Value) -> Result<(), RegistryError> {
-    match value {
-        Value::Array(values) => values.iter().try_for_each(validate_finite_json),
-        Value::Object(values) => values.values().try_for_each(validate_finite_json),
-        Value::Number(number) if number.as_f64().is_none() => Err(RegistryError::InvalidSceneItem("numeric payload is not finite".into())),
-        _ => Ok(()),
+fn validate_coordinate(value: f64, field: &str) -> Result<(), RegistryError> {
+    if !value.is_finite() || !(-1_000_000.0..=1_000_000.0).contains(&value) {
+        return Err(RegistryError::InvalidSceneItem(format!("{field} is outside the finite canonical range")));
+    }
+    Ok(())
+}
+
+fn validate_point(point: &ScenePoint, field: &str) -> Result<(), RegistryError> {
+    validate_coordinate(point.x, &format!("{field}.x"))?;
+    validate_coordinate(point.y, &format!("{field}.y"))
+}
+
+fn validate_style(style: &AnnotationStyle) -> Result<(), RegistryError> {
+    if style.color.trim().is_empty() || style.color.len() > 64 || style.fill_color.trim().is_empty() || style.fill_color.len() > 64 {
+        return Err(RegistryError::InvalidSceneItem("style color is empty or too long".into()));
+    }
+    if !style.opacity.is_finite() || !(0.0..=1.0).contains(&style.opacity) {
+        return Err(RegistryError::InvalidSceneItem("style opacity is outside [0, 1]".into()));
+    }
+    if !style.width.is_finite() || !(0.5..=128.0).contains(&style.width) {
+        return Err(RegistryError::InvalidSceneItem("style width is outside [0.5, 128]".into()));
+    }
+    if !style.fill_opacity.is_finite() || !(0.0..=1.0).contains(&style.fill_opacity) {
+        return Err(RegistryError::InvalidSceneItem("style fill opacity is outside [0, 1]".into()));
+    }
+    if !style.text_size.is_finite() || !(8.0..=256.0).contains(&style.text_size) {
+        return Err(RegistryError::InvalidSceneItem("style text size is outside [8, 256]".into()));
+    }
+    Ok(())
+}
+
+fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), RegistryError> {
+    match (tool, geometry) {
+        (ShapeTool::Line | ShapeTool::Arrow, SceneGeometry::Line { start, end }) => {
+            validate_point(start, "geometry.start")?;
+            validate_point(end, "geometry.end")?;
+        }
+        (ShapeTool::Rectangle, SceneGeometry::Rectangle { x, y, width, height }) => {
+            validate_coordinate(*x, "geometry.x")?;
+            validate_coordinate(*y, "geometry.y")?;
+            validate_coordinate(*x + *width, "geometry.right")?;
+            validate_coordinate(*y + *height, "geometry.bottom")?;
+            if !width.is_finite() || !height.is_finite() || *width < 0.0 || *height < 0.0 {
+                return Err(RegistryError::InvalidSceneItem("rectangle dimensions are invalid".into()));
+            }
+        }
+        (ShapeTool::Ellipse, SceneGeometry::Ellipse { center, radius_x, radius_y }) => {
+            validate_point(center, "geometry.center")?;
+            if !radius_x.is_finite() || !radius_y.is_finite() || *radius_x < 0.0 || *radius_y < 0.0 {
+                return Err(RegistryError::InvalidSceneItem("ellipse radii are invalid".into()));
+            }
+            validate_coordinate(center.x - *radius_x, "geometry.left")?;
+            validate_coordinate(center.x + *radius_x, "geometry.right")?;
+            validate_coordinate(center.y - *radius_y, "geometry.top")?;
+            validate_coordinate(center.y + *radius_y, "geometry.bottom")?;
+        }
+        _ => return Err(RegistryError::InvalidSceneItem("geometry does not match tool".into())),
+    }
+    Ok(())
+}
+
+fn validate_typed_scene_item(item: &SceneItem) -> Result<(), RegistryError> {
+    validate_id(item.id())?;
+    match item {
+        SceneItem::Stroke { tool, points, style, .. } => {
+            if points.is_empty() || points.len() > 4_096 {
+                return Err(RegistryError::InvalidSceneItem("stroke points are empty or too long".into()));
+            }
+            for point in points { validate_point(point, "points")?; }
+            let _ = tool;
+            validate_style(style)
+        }
+        SceneItem::Shape { tool, geometry, style, .. } => {
+            validate_geometry(tool, geometry)?;
+            validate_style(style)
+        }
+        SceneItem::Text { tool, anchor, text, style, .. } => {
+            if tool != "text" { return Err(RegistryError::InvalidSceneItem("text tool is unsupported".into())); }
+            validate_point(anchor, "anchor")?;
+            if text.is_empty() || text.len() > 4_096 { return Err(RegistryError::InvalidSceneItem("text is empty or too long".into())); }
+            validate_style(style)
+        }
     }
 }
 
@@ -427,5 +628,47 @@ mod tests {
         assert!(scene.commit_scene_item(serde_json::json!({"id":"","kind":"stroke"})).is_err());
         assert_eq!(scene.snapshot(), before);
         assert_eq!(scene.commit_scene_item(serde_json::json!({"id":"stroke-1","kind":"stroke"})).unwrap(), before);
+    }
+
+    #[test]
+    fn scene_store_accepts_typed_pen_and_highlighter_items_with_style_snapshots() {
+        let mut scene = SceneStore::default();
+        let pen = serde_json::json!({
+            "id": "pen-1",
+            "kind": "stroke",
+            "tool": "pen",
+            "points": [{"x": -10.0, "y": 20.0}, {"x": 30.0, "y": 40.0}],
+            "style": {"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0}
+        });
+        let highlighter = serde_json::json!({
+            "id": "highlighter-1",
+            "kind": "stroke",
+            "tool": "highlighter",
+            "points": [{"x": -10.0, "y": 20.0}, {"x": 30.0, "y": 40.0}],
+            "style": {"color":"#facc15","opacity":0.35,"width":12.0,"fill":"none","fillColor":"#facc15","fillOpacity":0.18,"textSize":24.0}
+        });
+
+        scene.commit_scene_item(pen).unwrap();
+        let snapshot = scene.commit_scene_item(highlighter).unwrap();
+        assert_eq!(snapshot.items.len(), 2);
+        assert!(matches!(snapshot.items[0], SceneItem::Stroke { tool: StrokeTool::Pen, .. }));
+        assert!(matches!(snapshot.items[1], SceneItem::Stroke { tool: StrokeTool::Highlighter, .. }));
+    }
+
+    #[test]
+    fn scene_store_rejects_unknown_or_malformed_payload_without_mutation() {
+        let mut scene = SceneStore::default();
+        scene.commit_scene_item(serde_json::json!({"id":"stable","kind":"stroke","points":[{"x":1.0,"y":2.0}]})).unwrap();
+        let before = scene.snapshot();
+
+        for invalid in [
+            serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1.0,"y":2.0}],"unexpected":true}),
+            serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1_000_001.0,"y":2.0}]}),
+            serde_json::json!({"id":"bad","kind":"stroke","points":[{"x":1.0,"y":2.0},{"x":3.0,"y":4.0}],"style":{"color":"#fff","opacity":2.0,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+            serde_json::json!({"id":"bad","kind":"shape","tool":"line","geometry":{"type":"rectangle","x":0.0,"y":0.0,"width":2.0,"height":2.0},"style": {"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+        ] {
+            assert!(scene.commit_scene_item(invalid).is_err());
+            assert_eq!(scene.snapshot(), before);
+        }
     }
 }

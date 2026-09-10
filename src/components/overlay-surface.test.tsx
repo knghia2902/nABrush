@@ -7,6 +7,7 @@ import {
   createStroke,
   drawScene,
   normalizePointerPath,
+  transientSceneItemForGesture,
   transientStrokeForSamples,
   viewportBackingSize,
   viewportToCanonical,
@@ -97,12 +98,22 @@ describe("OverlaySurface scene helpers", () => {
       viewport,
     );
 
-    expect(transient).toEqual({
-      id: "transient-stroke",
-      kind: "stroke",
-      points: [{ x: -1920, y: 180 }, { x: -1720, y: 80 }],
-    });
+    expect(transient).toEqual(createStroke("transient-stroke", [{ x: -1920, y: 180 }, { x: -1720, y: 80 }]));
     expect(scene).toEqual([]);
+  });
+
+  it("keeps pen and highlighter styles on the transient item snapshot", () => {
+    const style = { color: "#facc15", opacity: 0.35, width: 12, fill: "none" as const, fillColor: "#facc15", fillOpacity: 0.18, textSize: 24 };
+    const transient = transientSceneItemForGesture(
+      [{ clientX: 0, clientY: 0 }, { clientX: 100, clientY: 200 }],
+      { left: 0, top: 0, width: 1080, height: 1920 },
+      viewport,
+      "highlighter",
+      style,
+    );
+
+    expect(transient?.tool).toBe("highlighter");
+    expect(transient?.style).toEqual(style);
   });
 
   it("captures only in interactive mode and clears an empty canvas", () => {
@@ -134,6 +145,37 @@ describe("OverlaySurface scene helpers", () => {
 
     drawScene(context, [] as SceneItem[], 800, 600, undefined, transient);
 
+    expect(calls).toEqual(["clear", "begin", "move", "line", "stroke"]);
+  });
+
+  it("renders each retained stroke with its immutable style snapshot", () => {
+    const calls: string[] = [];
+    const context = {
+      clearRect: () => calls.push("clear"),
+      beginPath: () => calls.push("begin"),
+      moveTo: () => calls.push("move"),
+      lineTo: () => calls.push("line"),
+      stroke: () => calls.push("stroke"),
+      strokeStyle: "",
+      lineWidth: 0,
+      globalAlpha: 1,
+      globalCompositeOperation: "source-over",
+    };
+    const highlighter = createStroke("highlighter-1", [{ x: 0, y: 0 }, { x: 1, y: 1 }], {
+      color: "#facc15",
+      opacity: 0.35,
+      width: 12,
+      fill: "none",
+      fillColor: "#facc15",
+      fillOpacity: 0.18,
+      textSize: 24,
+    }, "highlighter");
+
+    drawScene(context, [highlighter], 800, 600);
+
+    expect(context.strokeStyle).toBe("#facc15");
+    expect(context.lineWidth).toBe(12);
+    expect(context.globalCompositeOperation).toBe("source-over");
     expect(calls).toEqual(["clear", "begin", "move", "line", "stroke"]);
   });
 });

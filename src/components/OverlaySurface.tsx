@@ -1,9 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import type { CanonicalPoint, DisplayOrientation, DisplayViewport, OverlayMode, SceneItem, StrokePoint, StrokeSceneItem } from "../types/overlay";
+import type {
+  AnnotationStyle,
+  AnnotationTool,
+  CanonicalPoint,
+  DisplayOrientation,
+  DisplayViewport,
+  OverlayMode,
+  SceneItem,
+  StrokePoint,
+  StrokeSceneItem,
+  StrokeTool,
+} from "../types/overlay";
+import { DEFAULT_PEN_STYLE } from "../types/overlay";
 
 export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
+
+type CanvasRenderContext = Pick<CanvasRenderingContext2D, "clearRect" | "beginPath" | "moveTo" | "lineTo" | "stroke"> &
+  Partial<Pick<CanvasRenderingContext2D, "strokeStyle" | "lineWidth" | "lineCap" | "lineJoin" | "globalAlpha">> & {
+    globalCompositeOperation?: string;
+  };
 
 export function viewportSize(viewport: DisplayViewport): { width: number; height: number } {
   const { width, height } = viewport.logicalSize;
@@ -72,17 +89,33 @@ export function normalizePointerPath(samples: readonly PointerSample[], rect: Su
   });
 }
 
-export function createStroke(id: string, points: readonly StrokePoint[]): StrokeSceneItem {
-  return { id, kind: "stroke", points };
+export function createStroke(
+  id: string,
+  points: readonly StrokePoint[],
+  style: AnnotationStyle = DEFAULT_PEN_STYLE,
+  tool: StrokeTool = "pen",
+): StrokeSceneItem {
+  return { id, kind: "stroke", tool, points, style };
 }
 
+export function transientSceneItemForGesture(
+  samples: readonly PointerSample[],
+  rect: SurfaceRect,
+  viewport: DisplayViewport | undefined,
+  tool: StrokeTool,
+  style: AnnotationStyle,
+): StrokeSceneItem | null {
+  const points = normalizePointerPath(samples, rect, viewport);
+  return points.length < 2 ? null : createStroke("transient-stroke", points, style, tool);
+}
+
+/** Backwards-compatible helper for the Phase 2 renderer tests and call sites. */
 export function transientStrokeForSamples(
   samples: readonly PointerSample[],
   rect: SurfaceRect,
   viewport?: DisplayViewport,
 ): StrokeSceneItem | null {
-  const points = normalizePointerPath(samples, rect, viewport);
-  return points.length < 2 ? null : createStroke("transient-stroke", points);
+  return transientSceneItemForGesture(samples, rect, viewport, "pen", DEFAULT_PEN_STYLE);
 }
 
 export function appendStroke(scene: readonly SceneItem[], stroke: StrokeSceneItem): readonly SceneItem[] {
@@ -93,27 +126,43 @@ export function canvasPointerEvents(mode: OverlayMode): "auto" | "none" {
   return mode === "VisibleInteractive" ? "auto" : "none";
 }
 
+function drawStroke(context: CanvasRenderContext, item: StrokeSceneItem, width: number, height: number, viewport?: DisplayViewport) {
+  if (item.points.length < 2) return;
+  const toViewport = viewport
+    ? (point: CanonicalPoint) => canonicalToViewport(point, viewport)
+    : (point: CanonicalPoint) => ({ x: point.x * width, y: point.y * height });
+  const [first, ...rest] = item.points;
+  const firstPoint = toViewport(first);
+
+  context.strokeStyle = item.style.color;
+  context.lineWidth = item.style.width;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.globalAlpha = item.style.opacity;
+  context.globalCompositeOperation = item.tool === "highlighter" ? "multiply" : "source-over";
+  context.beginPath();
+  context.moveTo(firstPoint.x, firstPoint.y);
+  for (const point of rest) {
+    const viewportPoint = toViewport(point);
+    context.lineTo(viewportPoint.x, viewportPoint.y);
+  }
+  context.stroke();
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = "source-over";
+}
+
 export function drawScene(
-  context: Pick<CanvasRenderingContext2D, "clearRect" | "beginPath" | "moveTo" | "lineTo" | "stroke">,
+  context: CanvasRenderContext,
   scene: readonly SceneItem[],
   width: number,
   height: number,
   viewport?: DisplayViewport,
-  transientStroke?: StrokeSceneItem | null,
+  transientSceneItem?: StrokeSceneItem | null,
 ) {
   context.clearRect(0, 0, width, height);
-  for (const item of transientStroke ? [...scene, transientStroke] : scene) {
-    if (item.kind !== "stroke" || item.points.length < 2) continue;
-    context.beginPath();
-    const [first, ...rest] = item.points;
-    const toViewport = viewport ? (point: CanonicalPoint) => canonicalToViewport(point, viewport) : (point: CanonicalPoint) => ({ x: point.x * width, y: point.y * height });
-    const firstPoint = toViewport(first);
-    context.moveTo(viewport ? firstPoint.x : firstPoint.x, viewport ? firstPoint.y : firstPoint.y);
-    for (const point of rest) {
-      const viewportPoint = toViewport(point);
-      context.lineTo(viewportPoint.x, viewportPoint.y);
-    }
-    context.stroke();
+  for (const item of transientSceneItem ? [...scene, transientSceneItem] : scene) {
+    if (item.kind !== "stroke") continue;
+    drawStroke(context, item, width, height, viewport);
   }
 }
 
@@ -121,20 +170,23 @@ type Props = {
   mode: OverlayMode;
   scene: readonly SceneItem[];
   viewport: DisplayViewport;
-  onCommitStroke: (stroke: StrokeSceneItem) => void;
+  activeTool: AnnotationTool;
+  toolStyle: AnnotationStyle;
+  onCommitSceneItem: (item: SceneItem) => void;
 };
 
-export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props) {
+export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, onCommitSceneItem }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerIdRef = useRef<number | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
-  const nextStrokeIdRef = useRef(0);
-  const [transientStroke, setTransientStroke] = useState<StrokeSceneItem | null>(null);
+  const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
+  const gestureToolRef = useRef<StrokeTool>(activeTool === "highlighter" ? "highlighter" : "pen");
+  const nextItemIdRef = useRef(0);
+  const [transientSceneItem, setTransientSceneItem] = useState<StrokeSceneItem | null>(null);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
     const dpr = viewport.scaleFactor;
     const size = viewportSize(viewport);
     const { width, height } = viewportBackingSize(viewport);
@@ -143,12 +195,8 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
     const context = canvas.getContext("2d");
     if (!context) return;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    context.strokeStyle = "rgba(239, 68, 68, 0.92)";
-    context.lineWidth = 4;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    drawScene(context, scene, size.width, size.height, viewport, transientStroke);
-  }, [scene, transientStroke, viewport]);
+    drawScene(context, scene, size.width, size.height, viewport, transientSceneItem);
+  }, [scene, transientSceneItem, viewport]);
 
   useEffect(() => {
     redraw();
@@ -163,33 +211,65 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
     };
   }, [redraw]);
 
-  const beginStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (mode !== "VisibleInteractive" || event.button !== 0) return;
+  const cancelGesture = useCallback(() => {
+    const canvas = canvasRef.current;
+    const pointerId = pointerIdRef.current;
+    if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+    pointerIdRef.current = null;
+    samplesRef.current = [];
+    setTransientSceneItem(null);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "VisibleInteractive" || (activeTool !== "pen" && activeTool !== "highlighter")) cancelGesture();
+  }, [activeTool, cancelGesture, mode]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelGesture();
+    };
+    const handleBlur = () => cancelGesture();
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [cancelGesture]);
+
+  const beginGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (mode !== "VisibleInteractive" || event.button !== 0 || (activeTool !== "pen" && activeTool !== "highlighter")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
-    setTransientStroke(null);
+    gestureStyleRef.current = { ...toolStyle };
+    gestureToolRef.current = activeTool;
+    setTransientSceneItem(null);
   };
 
-  const moveStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const moveGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current !== event.pointerId) return;
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
-    setTransientStroke(transientStrokeForSamples(samplesRef.current, event.currentTarget.getBoundingClientRect(), viewport));
+    setTransientSceneItem(transientSceneItemForGesture(
+      samplesRef.current,
+      event.currentTarget.getBoundingClientRect(),
+      viewport,
+      gestureToolRef.current,
+      gestureStyleRef.current,
+    ));
   };
 
-  const endStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const endGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current !== event.pointerId) return;
     const canvas = event.currentTarget;
     const samples = samplesRef.current;
-    pointerIdRef.current = null;
-    samplesRef.current = [];
-    setTransientStroke(null);
-    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-    const rect = canvas.getBoundingClientRect();
-    const points = normalizePointerPath(samples, rect, viewport);
+    const style = gestureStyleRef.current;
+    const tool = gestureToolRef.current;
+    const points = normalizePointerPath(samples, canvas.getBoundingClientRect(), viewport);
+    cancelGesture();
     if (points.length < 2) return;
-    nextStrokeIdRef.current += 1;
-    onCommitStroke(createStroke(`stroke-${nextStrokeIdRef.current}`, points));
+    nextItemIdRef.current += 1;
+    onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool));
   };
 
   return (
@@ -201,10 +281,10 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
       style={{ pointerEvents: canvasPointerEvents(mode), width: viewportSize(viewport).width, height: viewportSize(viewport).height }}
       width={Math.max(1, Math.round(viewportSize(viewport).width * viewport.scaleFactor))}
       height={Math.max(1, Math.round(viewportSize(viewport).height * viewport.scaleFactor))}
-      onPointerDown={beginStroke}
-      onPointerMove={moveStroke}
-      onPointerUp={endStroke}
-      onPointerCancel={endStroke}
+      onPointerDown={beginGesture}
+      onPointerMove={moveGesture}
+      onPointerUp={endGesture}
+      onPointerCancel={cancelGesture}
     />
   );
 }

@@ -13,6 +13,33 @@ export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
 export type StrokePoint = { x: number; y: number };
 export type CanonicalPoint = StrokePoint;
+export type { AnnotationTool } from "./platform-parity";
+export { TOOL_ORDER } from "./platform-parity";
+
+export type StrokeTool = "pen" | "highlighter";
+export type ShapeTool = "line" | "arrow" | "rectangle" | "ellipse";
+export type AnnotationFill = "none" | "solid";
+
+export type AnnotationStyle = Readonly<{
+  color: string;
+  opacity: number;
+  width: number;
+  fill: AnnotationFill;
+  fillColor: string;
+  fillOpacity: number;
+  textSize: number;
+}>;
+
+export const DEFAULT_PEN_STYLE: AnnotationStyle = {
+  color: "#ef4444",
+  opacity: 0.92,
+  width: 2,
+  fill: "none",
+  fillColor: "#ef4444",
+  fillOpacity: 0.18,
+  textSize: 24,
+};
+
 export type DisplayOrientation = "degrees0" | "degrees90" | "degrees180" | "degrees270";
 export type DisplayViewport = {
   id: string;
@@ -21,8 +48,55 @@ export type DisplayViewport = {
   scaleFactor: number;
   orientation: DisplayOrientation;
 };
-export type StrokeSceneItem = { id: string; kind: "stroke"; points: readonly StrokePoint[] };
-export type SceneItem = StrokeSceneItem | { id: string; kind: "shape" | "text" };
+export type StrokeSceneItem = Readonly<{
+  id: string;
+  kind: "stroke";
+  tool: StrokeTool;
+  points: readonly StrokePoint[];
+  style: AnnotationStyle;
+}>;
+
+export type LineGeometry = Readonly<{
+  type: "line";
+  start: CanonicalPoint;
+  end: CanonicalPoint;
+}>;
+
+export type RectangleGeometry = Readonly<{
+  type: "rectangle";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>;
+
+export type EllipseGeometry = Readonly<{
+  type: "ellipse";
+  center: CanonicalPoint;
+  radiusX: number;
+  radiusY: number;
+}>;
+
+export type SceneGeometry = LineGeometry | RectangleGeometry | EllipseGeometry;
+
+export type ShapeSceneItem = Readonly<{
+  id: string;
+  kind: "shape";
+  tool: ShapeTool;
+  geometry: SceneGeometry;
+  style: AnnotationStyle;
+}>;
+
+export type TextSceneItem = Readonly<{
+  id: string;
+  kind: "text";
+  tool: "text";
+  anchor: CanonicalPoint;
+  text: string;
+  style: AnnotationStyle;
+}>;
+
+export type SceneItem = StrokeSceneItem | ShapeSceneItem | TextSceneItem;
 export type SceneSnapshot = { sceneId: string; items: readonly SceneItem[] };
 export type SceneEventPayload = SceneSnapshot & {
   /** The viewport that originated a local scene commit, when supplied by native. */
