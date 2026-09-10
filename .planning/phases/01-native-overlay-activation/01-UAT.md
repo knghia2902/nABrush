@@ -8,10 +8,10 @@ updated: 2026-09-10
 
 ## Current Test
 
-number: 3
-name: Settings close-to-hide and recovery actions
+number: 4
+name: Full-screen and permission limitations
 expected: |
-  Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
+  Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
 awaiting: user response
 
 ## Tests
@@ -33,7 +33,9 @@ note: "User confirmed the current build lacks a drawing toolbar/canvas and a Cli
 
 ### 3. Settings close-to-hide and recovery actions
 expected: Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
-result: [pending]
+result: issue
+reported: "settings mở lúc được lúc không"
+severity: major
 
 ### 4. Full-screen and permission limitations
 expected: Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
@@ -43,8 +45,8 @@ result: [pending]
 
 total: 4
 passed: 1
-issues: 1
-pending: 2
+issues: 2
+pending: 1
 skipped: 0
 blocked: 0
 
@@ -100,3 +102,18 @@ blocked: 0
     - "A user-facing drawing surface/tool control that commits a mark to the retained scene."
     - "A user-facing Click-through action wired to the native controller."
   diagnosis: "Phase 1 contains native mode seams and reducer fixtures, but the shipped webview has no pointer renderer or toolbar and the production shortcut handler only registers visibility, so manual drawing and click-through cannot be exercised."
+
+- gap_id: G-01-4
+  truth: "Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry."
+  status: failed
+  reason: "User reported: settings mở lúc được lúc không"
+  severity: major
+  test: 3
+  artifacts:
+    - "src/App.tsx"
+    - "src/components/SettingsPanel.tsx"
+    - "src-tauri/src/controller.rs"
+    - "src-tauri/src/main.rs"
+  missing:
+    - "A deterministic, user-reproducible Settings open/close lifecycle."
+  diagnosis: "The Settings surface is not reliably reachable from the tray during manual UAT; the current native show path has no visible diagnostic or retry feedback when the window/webview fails to present."
