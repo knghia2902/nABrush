@@ -220,17 +220,15 @@ struct OverlayBootstrapState {
 
 #[tauri::command]
 fn get_overlay_bootstrap_state(
-    label: String,
-    controller: tauri::State<'_, AppController>,
+    window: tauri::WebviewWindow,
     registry: tauri::State<'_, Mutex<OverlayRegistry>>,
 ) -> OverlayBootstrapState {
-    let mode = controller.snapshot().mode;
+    let registry = registry.lock().expect("registry mutex poisoned");
+    let mode = registry.mode();
     let viewport = registry
-        .lock()
-        .expect("registry mutex poisoned")
         .viewports()
         .values()
-        .find(|viewport| viewport.label == label)
+        .find(|viewport| viewport.label == window.label())
         .map(|viewport| display::DisplayViewport::from(&viewport.descriptor));
     OverlayBootstrapState { mode, viewport }
 }

@@ -46,7 +46,7 @@ export default function App() {
         setScene(payload.items);
       }
     }).then((unlisten) => { disposeScene = unlisten; });
-    void invoke<{ mode: OverlayMode; viewport?: unknown }>("get_overlay_bootstrap_state", { label: windowLabel })
+    void invoke<{ mode: OverlayMode; viewport?: unknown }>("get_overlay_bootstrap_state")
       .then((bootstrap) => {
         setMode(bootstrap.mode);
         const nextViewport = normalizeDisplayViewport(bootstrap.viewport);
