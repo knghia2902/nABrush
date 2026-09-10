@@ -255,7 +255,7 @@ fn registry_error(error: RegistryError) -> tauri::Error {
     tauri::Error::Anyhow(error.into())
 }
 
-fn display_snapshot<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<DisplaySnapshot> {
+pub(crate) fn display_snapshot<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<DisplaySnapshot> {
     let monitors = app.available_monitors()?;
     if monitors.is_empty() {
         return Err(tauri::Error::WindowNotFound);
