@@ -2,7 +2,7 @@
 
 **Researched:** 2026-09-11  
 **Domain:** retained Canvas 2D annotation scene, Tauri/Rust IPC, multi-display input  
-**Confidence:** MEDIUM — các seam hiện tại và test baseline có bằng chứng trực tiếp; các lựa chọn schema, ngưỡng hình học và chi tiết toolbar vẫn là quyết định cần planner chốt.
+**Confidence:** MEDIUM — các seam hiện tại, test baseline và completed implementation có bằng chứng trực tiếp; native macOS/Windows behavior vẫn là validation work, không còn open research questions về schema, defaults hoặc toolbar visibility.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -191,11 +191,11 @@ Giữ các integration points hiện có: `src/components/OverlaySurface.tsx`, `
 
 ### Pattern 1: Typed discriminated retained scene
 
-**Use:** giữ `SceneItem` là discriminated union có `id`, category `kind`, exact `tool`, canonical geometry, và immutable style snapshot. Khuyến nghị giữ `kind` hiện có (`"stroke"`, `"shape"`, `"text"`) để không phá wire envelope, rồi thêm `tool` (`pen`/`highlighter`/`line`/`arrow`/`rectangle`/`ellipse`/`text`) và payload typed; đây là quyết định schema mới cần planner khóa [ASSUMED].
+**Use:** giữ `SceneItem` là discriminated union có `id`, category `kind`, exact `tool`, canonical geometry, và immutable style snapshot. Giữ `kind` hiện có (`"stroke"`, `"shape"`, `"text"`) để không phá wire envelope, rồi thêm `tool` (`pen`/`highlighter`/`line`/`arrow`/`rectangle`/`ellipse`/`text`) và payload typed; completed Plan 03-01 đã khóa schema này trong TypeScript/Rust [RESOLVED].
 
 Rust nên deserialize cùng discriminator bằng `#[serde(tag = "type")]` hoặc một enum struct tương đương, bật reject unknown fields/range validation phù hợp; Serde xác nhận internal tag nằm cạnh fields và phù hợp struct variants [CITED: https://serde.rs/enum-representations.html; https://serde.rs/attributes.html]. Không dùng untagged enum vì nó không có discriminator và match theo thứ tự variant [CITED: https://serde.rs/enum-representations.html].
 
-Validation tối thiểu: ID không rỗng/bounded; mọi số finite và trong display bounds; points có tối thiểu hai điểm với stroke; line/shape có start/end hoặc bounds hợp lệ; text có vị trí, text bounded và style hợp lệ; fill/opacity/width nằm trong range dương/0…1. Các range số cụ thể cần planner chốt [ASSUMED].
+Validation tối thiểu: ID không rỗng/bounded; mọi số finite và trong display bounds; points có tối thiểu hai điểm với stroke; line/shape có start/end hoặc bounds hợp lệ; text có vị trí, text bounded và style hợp lệ; fill/opacity/width nằm trong range dương/0…1. Completed Plans 03-01 through 03-03 and the current validator provide the concrete ranges and reject-before-mutate behavior [RESOLVED].
 
 ### Pattern 2: Gesture state machine with transient preview
 
@@ -405,30 +405,23 @@ thành quyết định hoặc checkpoint trước implementation [VERIFIED: rese
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Giữ `kind` category hiện tại và thêm `tool` discriminator/payload typed là wire schema phù hợp nhất. | Pattern 1 | Nếu schema chọn `kind` tool-specific, phải sửa Rust allowlist, TS fixture và mọi test serialization. |
-| A2 | Ngưỡng drag ban đầu khoảng 4 logical px, hit padding khoảng 6 logical px, default width/opacity cần bắt đầu mảnh và được visual-check. | Pattern 1/6 | Threshold quá nhỏ tạo item rác; quá lớn khiến click/erase khó; style sai cảm giác presenter. |
-| A3 | Draft dùng `textarea` scene-excluded, text committed vẽ multiline bằng `fillText` từng dòng, và không commit khi `isComposing`. | Pattern 5 | IME, focus hoặc multiline layout có thể cần component khác; phải test trên macOS/Windows. |
-| A4 | Gesture abort trên mode change/mất focus; command mới nên có tên `erase_scene_item`, nhận một ID và no-op vẫn trả/broadcast snapshot. | Pattern 2/4/6 | Đổi lifecycle hoặc command shape ảnh hưởng `main.rs`, frontend callback và E2E contract. |
-| A5 | Hit-test dùng polyline distance, shape fill/stroke ring, ellipse equation và text line bounds; reverse scene order là topmost. | Pattern 6 | Công thức/padding sai làm hover hoặc xóa nhầm; cần unit tests hình học. |
+| A1 | Giữ `kind` category hiện tại và thêm `tool` discriminator/payload typed là wire schema đã chọn. | Pattern 1; completed Plan 03-01 | Current `src/types/overlay.ts` and `SceneStore` use the category-plus-tool contract; no schema fork remains open. |
+| A2 | Dùng 2 logical px cho pen/outline, 12 logical px ở opacity 0.35 cho highlighter, 4 logical px cho geometry threshold và 6 logical px cho hit padding. | Pattern 1/6; completed Plans 03-01 through 03-03 | These values are present in `src/state/annotation.ts` and the completed summaries; native visual feel remains validation evidence. |
+| A3 | Draft dùng `textarea` scene-excluded, text committed vẽ multiline bằng `fillText` từng dòng, và không commit khi `isComposing`. | Pattern 5; completed Plan 03-03 | Current `OverlaySurface` and text tests implement this lifecycle; IME correctness on each host remains a manual validation item. |
+| A4 | Gesture abort trên mode change/mất focus; command `erase_scene_item` nhận một ID và no-op vẫn trả/broadcast snapshot. | Pattern 2/4/6; completed Plan 03-03 | The current frontend/native bridge and summary evidence establish this command and lifecycle contract. |
+| A5 | Hit-test dùng polyline distance, shape fill/stroke ring, ellipse equation và text line bounds; reverse scene order là topmost. | Pattern 6; completed Plan 03-03 | The current helper and tests establish the algorithm; native hover appearance remains validation evidence. |
 | A6 | `src/state/annotation.test.ts`, phase-3 WebdriverIO suite và test command cadence là tên/path/workflow hợp lý cho Wave 0. | Validation | Planner có thể chọn path khác, nhưng phải giữ test coverage tương đương. |
 | A7 | Windows native runner chưa sẵn trong shell hiện tại; fallback là CI/manual Windows matrix. | Environment | Không được coi macOS pass là bằng chứng platform parity. |
 | A8 | ASVS V2–V6 mapping theo project template là đủ cho phase này, dù chapter numbering cần re-check theo ASVS 5.0. | Security | Có thể phải đổi mã/category trong plan security nếu project chuẩn hóa theo ASVS 5.0 đầy đủ. |
 | A9 | Không thêm crypto, không dùng `innerHTML`, không đổi production code ngoài implementation phase, và validity window 30 ngày là phù hợp. | Security/Metadata | Nếu scope đổi, cần bổ sung threat model hoặc cập nhật research trước planning. |
 
-## Open Questions
+## Open Questions (Resolved)
 
-1. **Schema cuối cùng dùng `kind` category + `tool`, hay `kind` chính là từng tool?**  
-   - What we know: current wire model chỉ allowlist `"stroke" | "shape" | "text"`, còn tool order đã khóa tám tên [VERIFIED: src-tauri/src/overlay_registry.rs:93-103; src/types/platform-parity.ts:13-23].  
-   - What's unclear: backward compatibility mong muốn của phase với stroke sentinel cũ.  
-   - Recommendation: planner chọn `kind` category + `tool` để mở rộng ít phá vỡ nhất; ghi schema JSON/type quote trong plan [ASSUMED].
-2. **Default widths, opacity và threshold chính xác là bao nhiêu?**  
-   - What we know: D-05/D3 discretion yêu cầu nét thon và visual preview, không khóa số [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:34-36,69-74].  
-   - What's unclear: cảm giác trên scale factor/độ phân giải và pen/highlighter contrast.  
-   - Recommendation: bắt đầu bằng constants logical, unit-test invariant/range và manual visual check trên cả hai OS [ASSUMED].
-3. **Toolbar có hiện ở `VisibleClickThrough` không?**  
-   - What we know: toolbar phải ở cạnh dưới trong chế độ vẽ và không chặn click-through [VERIFIED: .planning/phases/03-core-annotation-tools/03-CONTEXT.md:26-33,75-77].  
-   - What's unclear: UI có nên chỉ render ở `VisibleInteractive` hay vẫn visible nhưng không tương tác.  
-   - Recommendation: chỉ render interactive; user chuyển mode bằng shortcut trước khi dùng toolbar, tránh chrome cản underlying app [ASSUMED].
+**Resolution status:** RESOLVED on 2026-09-11. The three questions below are closed from the locked context decisions, current implementation, and completed Phase 3 summaries. Remaining macOS/Windows native execution and visual checks are validation gaps, not unresolved research questions.
+
+1. **Final scene schema — RESOLVED:** Keep `kind` as the retained category (`stroke`, `shape`, or `text`) and add the exact `tool`, typed geometry/payload, and immutable style fields. This preserves the Phase 2 wire envelope while supporting all eight locked tools. Evidence: `src/types/overlay.ts`, the typed `SceneStore` validator, and Plan 03-01's recorded decision that the category-plus-tool contract is implemented.
+2. **Defaults and thresholds — RESOLVED:** Use 2 logical px for pen/line/arrow/shape outlines at the existing outline opacity, 12 logical px with 0.35 opacity for the highlighter, a 4 logical px canonical geometry threshold, 6 logical px hit-test padding, 0.18 default shape fill opacity, and 1.2 text line-height multiplier. Evidence: `src/state/annotation.ts`, Plans 03-01 through 03-03 summaries, and their targeted tests. D-05's visual requirement remains subject to native macOS/Windows validation; it does not leave the numeric contract open.
+3. **Toolbar visibility — RESOLVED:** Render the bottom, scene-excluded toolbar and compact property popover only while the overlay is `VisibleInteractive`. `VisibleClickThrough` intentionally omits interactive chrome so the underlying app receives pointer input; the user returns to drawing mode through the existing mode controls before using the toolbar. Evidence: `src/App.tsx`, `src/styles.css`, D-01/D-03, and Plan 03-03's completed visibility behavior.
 
 ## Project Constraints (from AGENTS.md)
 

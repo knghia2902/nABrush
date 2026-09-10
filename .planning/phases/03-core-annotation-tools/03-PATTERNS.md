@@ -2,7 +2,7 @@
 
 **Mapped:** 2026-09-11  
 **Files analyzed:** 9 planned surfaces (7 existing files modified, 2 new test/state surfaces)  
-**Analogs found:** 9 / 9
+**Analogs found:** 11 / 11
 
 ## File Classification
 
@@ -10,9 +10,11 @@
 |---|---|---|---|---|
 | `src/components/OverlaySurface.tsx` | component/renderer | request-response + streaming preview | `src/components/OverlaySurface.tsx` | exact extension |
 | `src/App.tsx` | component/orchestrator | request-response + event-driven | `src/App.tsx` | exact extension |
+| `src/components/AnnotationToolbar.tsx` | component/chrome | request-response + UI event | `src/App.tsx`, `src/styles.css` | extraction/role match |
 | `src/types/overlay.ts` | model/wire types | transform/request-response | `src/types/overlay.ts` | exact extension |
 | `src/state/annotation.ts` | store/reducer/geometry utility | transform/event-driven | `src/state/overlay.ts` | role-match |
 | `src/state/annotation.test.ts` | test | transform | `src/state/overlay.test.ts` | role-match |
+| `src/components/annotation-toolbar.test.tsx` | test | UI event/static markup | `src/components/mode-badge.test.tsx` | role-match |
 | `src/components/overlay-surface.test.tsx` | test | streaming preview/transform | `src/components/overlay-surface.test.tsx` | exact extension |
 | `src/styles.css` | UI chrome CSS | request-response/UI event | `src/styles.css` | exact extension |
 | `src-tauri/src/overlay_registry.rs` | service/model store | CRUD + event-driven broadcast | same file | exact extension |
@@ -37,6 +39,10 @@
 
 Hydrate with `invoke<SceneSnapshot>("get_scene_snapshot")` (33-36), register typed `listen` handlers and cleanup (37-56), and commit with `invoke("commit_scene_item", { item })`, applying the returned whole snapshot (59-65). Add tool/style/draft callbacks and an erase command while retaining snapshot events as the synchronization source. Keep chrome conditional on `VisibleInteractive` and outside `OverlaySurface` scene items (79-87).
 
+### `src/components/AnnotationToolbar.tsx` (component/chrome, request-response/UI event)
+
+**Analog:** extract the inline toolbar from `src/App.tsx` (the `src/App.tsx` assignment above, lines 28-89) and preserve the chrome layering from `src/styles.css` lines 16-26. Keep `TOOL_ORDER`, `aria-pressed`, `data-tool`, `data-property-popover`, `data-style-control`, and `data-scene-excluded` selectors stable while routing controlled style patches through the existing `onUpdateStyle` callback. The component remains a sibling of the canvas, not a scene renderer.
+
 ### `src/types/overlay.ts` (model, request-response/transform)
 
 **Analog:** `src/types/overlay.ts`, tracked, lines 14-31.
@@ -48,6 +54,10 @@ Extend the current `StrokePoint`/`StrokeSceneItem` discriminated model (14-26) w
 **Analogs:** `src/state/overlay.ts` lines 53-78 and `src/state/overlay.test.ts` lines 11-49.
 
 Use pure reducer/helper functions and immutable returns like `transition` and `addSceneItem`; preserve idempotent scene behavior and never clear retained items for mode changes. Put deterministic geometry, threshold, style-per-tool, text draft keyboard handling, and reverse-order hit testing here. Tests should use Vitest `describe/it/expect` and fixtures in the existing test style; cover topmost item, single erase, `Enter` vs `Shift+Enter`, `Escape`, IME guard, and canonical transforms.
+
+### `src/components/annotation-toolbar.test.tsx` (test, UI event/static markup)
+
+**Analog:** `src/components/mode-badge.test.tsx` for `react-dom/server`/`renderToStaticMarkup` assertions, with the component contract taken from `src/components/AnnotationToolbar.tsx` and the state isolation assertions following the `src/state/annotation.test.ts` role-match above. Assert selectors and controlled values through markup; do not add a UI testing dependency or duplicate the toolbar state store.
 
 ### `src/components/overlay-surface.test.tsx` (test, streaming/transform)
 

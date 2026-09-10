@@ -130,7 +130,7 @@ Plans:
   4. User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations, with configurable color and text size.
   5. User can use an eraser to remove one selected annotation without affecting unrelated annotations.
 
-**Plans:** 4/7 plans executed; 3 gap-closure plans pending
+**Plans:** 4/8 plans executed; 4 gap-closure plans pending
 Plans:
 **Wave 1**
 
@@ -159,6 +159,10 @@ Plans:
 **Wave 7** *(blocked on Wave 6 completion)*
 
 - [ ] 03-07-PLAN.md — Gap closure: MVP goal contract and auditable validation record
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 03-08-PLAN.md — Gap closure: final multi-source validation audit and evidence-consistent sign-off
 
 ### Phase 4: Editing & Ink Lifecycle
 
