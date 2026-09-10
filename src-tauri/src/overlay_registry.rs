@@ -1,10 +1,12 @@
 use crate::controller::OverlayMode;
-use crate::display::{DisplayDescriptor, DisplayId, DisplaySnapshot};
+use crate::display::{DisplayDescriptor, DisplayId, DisplaySnapshot, DisplayViewport};
+use crate::errors::{display_topology_error, ErrorStore};
 use crate::platform::PlatformWindowAdapter;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use tauri::{AppHandle, Emitter, Manager, Position, Runtime, Size, WebviewUrl, WebviewWindowBuilder};
 
 /// The fixed bootstrap label remains configured in `tauri.conf.json`; every
 /// additional viewport receives a Rust-generated label derived from its
@@ -246,6 +248,98 @@ impl OverlayRegistry {
         adapters.retain(|id, _| self.viewports.contains_key(id));
         Ok(())
     }
+
+    /// Plan registry state synchronously, then perform native WebView work on
+    /// Tauri's runtime boundary. In particular, this function is safe to call
+    /// from a display notification handler because no window is built inline.
+    pub fn reconcile_native_async<R: Runtime>(
+        &mut self,
+        app: &AppHandle<R>,
+        snapshot: DisplaySnapshot,
+    ) -> Result<RegistryChanges, RegistryError> {
+        let changes = self.reconcile(snapshot)?;
+        let viewports = self.viewports.values().cloned().collect::<Vec<_>>();
+        let removed = changes.removed.clone();
+        let mode = self.mode;
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err((display_id, detail)) = apply_native_viewports(&app, viewports, removed, mode).await {
+                let state = app.state::<ErrorStore>();
+                let error = display_topology_error(display_id.as_str(), &detail);
+                if let Err(publish_error) = state.publish(&app, Some(error)) {
+                    eprintln!("nABrush could not publish display error: {publish_error}");
+                }
+            }
+        });
+        Ok(changes)
+    }
+
+    pub fn broadcast_scene<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        snapshot: &SceneSnapshot,
+    ) -> tauri::Result<()> {
+        app.emit("scene-changed", snapshot)
+    }
+}
+
+async fn apply_native_viewports<R: Runtime>(
+    app: &AppHandle<R>,
+    viewports: Vec<OverlayViewport>,
+    removed: Vec<DisplayId>,
+    mode: OverlayMode,
+) -> Result<(), (DisplayId, String)> {
+    for id in removed {
+        if let Some(window) = app.get_webview_window(&generated_overlay_label(&id)) {
+            window.destroy().map_err(|error| (id.clone(), error.to_string()))?;
+        }
+    }
+    for viewport in viewports {
+        let label = viewport.label.clone();
+        let window = if let Some(window) = app.get_webview_window(&label) {
+            window
+        } else {
+            WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+                .title("nABrush Overlay")
+                .transparent(true)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .focusable(!viewport.click_through)
+                .visible(false)
+                .position(viewport.descriptor.origin.x, viewport.descriptor.origin.y)
+                .inner_size(viewport.descriptor.logical_size.width, viewport.descriptor.logical_size.height)
+                .build()
+                .map_err(|error| (viewport.id.clone(), error.to_string()))?
+        };
+        window
+            .set_position(Position::Logical(tauri::LogicalPosition::new(
+                viewport.descriptor.origin.x,
+                viewport.descriptor.origin.y,
+            )))
+            .map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        window
+            .set_size(Size::Logical(tauri::LogicalSize::new(
+                viewport.descriptor.logical_size.width,
+                viewport.descriptor.logical_size.height,
+            )))
+            .map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        window
+            .set_focusable(!viewport.click_through)
+            .map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        window
+            .set_ignore_cursor_events(viewport.click_through)
+            .map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        if mode == OverlayMode::Hidden {
+            window.hide().map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        } else {
+            window.show().map_err(|error| (viewport.id.clone(), error.to_string()))?;
+        }
+        app.emit("overlay-viewport-changed", DisplayViewport::from(&viewport.descriptor))
+            .map_err(|error| (viewport.id.clone(), error.to_string()))?;
+    }
+    Ok(())
 }
 
 pub fn generated_overlay_label(id: &DisplayId) -> String {

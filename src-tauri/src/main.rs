@@ -12,10 +12,15 @@ mod tracer;
 mod tray;
 
 use controller::AppController;
+use overlay_registry::{OverlayRegistry, SceneSnapshot, SceneStore};
+use serde_json::Value;
+use std::sync::Mutex;
 use tauri::{Manager, Runtime};
 
 fn setup<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     app.manage(AppController::default());
+    app.manage(Mutex::new(OverlayRegistry::default()));
+    app.manage(Mutex::new(SceneStore::default()));
     app.manage(errors::ErrorStore::default());
     app.manage(shortcut::ShortcutRegistry::default());
     app.manage(startup::StartupAdapter::default());
@@ -106,6 +111,31 @@ fn test_inject_overlay_error(
     }
 }
 
+#[tauri::command]
+fn get_scene_snapshot(state: tauri::State<'_, Mutex<SceneStore>>) -> SceneSnapshot {
+    state.lock().expect("scene mutex poisoned").snapshot()
+}
+
+#[tauri::command]
+fn commit_scene_item(
+    item: Value,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SceneStore>>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<SceneSnapshot, String> {
+    let snapshot = state
+        .lock()
+        .expect("scene mutex poisoned")
+        .commit_scene_item(item)
+        .map_err(|error| error.to_string())?;
+    registry
+        .lock()
+        .expect("registry mutex poisoned")
+        .broadcast_scene(&app, &snapshot)
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot)
+}
+
 fn main() {
     let builder = tauri::Builder::default();
 
@@ -122,6 +152,8 @@ fn main() {
             errors::set_error_state,
             errors::retry_overlay,
             errors::open_system_settings,
+            get_scene_snapshot,
+            commit_scene_item,
             test_dispatch_action,
             test_show_settings,
             test_request_close_settings,

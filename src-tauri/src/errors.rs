@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
+use crate::controller::{AppController, ShortcutAction};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     ShortcutPermission,
@@ -9,6 +11,9 @@ pub enum ErrorCode {
     OverlayInitialization,
     SettingsWindowUnavailable,
     NativeController,
+    DisplayTopology,
+    FullScreenBlocked,
+    DisplayPermission,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +63,36 @@ pub fn overlay_initialization_error() -> ErrorState {
     }
 }
 
+pub fn display_topology_error(display_id: &str, detail: &str) -> ErrorState {
+    ErrorState {
+        code: ErrorCode::DisplayTopology,
+        message: format!("The overlay could not be updated on display `{display_id}`. Retry to reconcile it."),
+        platform_detail: Some(detail.to_owned()),
+        persistent: true,
+        actions: vec![RecoveryAction::Retry],
+    }
+}
+
+pub fn full_screen_blocked_error(detail: Option<&str>) -> ErrorState {
+    ErrorState {
+        code: ErrorCode::FullScreenBlocked,
+        message: "The current full-screen surface blocks overlays. Try borderless full-screen or Retry.".into(),
+        platform_detail: detail.map(str::to_owned),
+        persistent: true,
+        actions: vec![RecoveryAction::Retry],
+    }
+}
+
+pub fn display_permission_error(detail: Option<&str>) -> ErrorState {
+    ErrorState {
+        code: ErrorCode::DisplayPermission,
+        message: "Display permission is required before the overlay can cover this screen.".into(),
+        platform_detail: detail.map(str::to_owned),
+        persistent: true,
+        actions: vec![RecoveryAction::Retry, RecoveryAction::OpenSystemSettings],
+    }
+}
+
 pub fn shortcut_registration_error(accelerator: &str, error: &tauri::Error) -> ErrorState {
     ErrorState {
         code: ErrorCode::ShortcutPermission,
@@ -98,9 +133,12 @@ pub fn set_error_state(error: Option<ErrorState>, app: AppHandle, state: State<'
 #[tauri::command]
 pub fn retry_overlay(app: AppHandle, state: State<'_, ErrorStore>) -> Result<bool, String> {
     let Some(error) = state.get() else { return Ok(false); };
-    if error.code != ErrorCode::OverlayInitialization {
+    if !matches!(error.code, ErrorCode::OverlayInitialization | ErrorCode::DisplayTopology | ErrorCode::FullScreenBlocked | ErrorCode::DisplayPermission) {
         return Err("Retry is not available for this native error".into());
     }
+    app.state::<AppController>()
+        .dispatch_action(&app, ShortcutAction::Retry)
+        .map_err(|value| value.to_string())?;
     state.publish(&app, None).map_err(|value| value.to_string())?;
     Ok(true)
 }
@@ -138,5 +176,16 @@ mod tests {
         assert_eq!(state.code, ErrorCode::SettingsWindowUnavailable);
         assert!(state.actions.contains(&RecoveryAction::Retry));
         assert!(state.persistent);
+    }
+
+    #[test]
+    fn topology_and_permission_failures_preserve_actionable_recovery() {
+        let topology = display_topology_error("display-a", "creation failed");
+        assert_eq!(topology.code, ErrorCode::DisplayTopology);
+        assert!(topology.actions.contains(&RecoveryAction::Retry));
+        let permission = display_permission_error(Some("screen recording denied"));
+        assert_eq!(permission.code, ErrorCode::DisplayPermission);
+        assert!(permission.actions.contains(&RecoveryAction::OpenSystemSettings));
+        assert_eq!(full_screen_blocked_error(None).code, ErrorCode::FullScreenBlocked);
     }
 }
