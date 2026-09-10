@@ -7,6 +7,7 @@ import {
   createStroke,
   drawScene,
   normalizePointerPath,
+  viewportBackingSize,
   viewportToCanonical,
 } from "./OverlaySurface";
 
@@ -50,6 +51,29 @@ describe("OverlaySurface scene helpers", () => {
     const local = canonicalToViewport(canonical, viewport);
     expect(local).toEqual({ x: 80, y: 520 });
     expect(viewportToCanonical(local, viewport)).toEqual(canonical);
+  });
+
+  it("round-trips every supported quarter-turn orientation", () => {
+    const canonical = { x: -1500, y: -300 };
+    for (const orientation of ["degrees0", "degrees90", "degrees180", "degrees270"] as const) {
+      const rotated = { ...viewport, orientation };
+      const local = canonicalToViewport(canonical, rotated);
+      expect(viewportToCanonical(local, rotated)).toEqual(canonical);
+    }
+  });
+
+  it("sizes the backing store from each viewport's logical dimensions and DPR", () => {
+    expect(viewportBackingSize(viewport)).toEqual({ width: 2160, height: 3840 });
+    expect(viewportBackingSize({ ...viewport, scaleFactor: 1.25, orientation: "degrees0" })).toEqual({ width: 2400, height: 1350 });
+  });
+
+  it("clamps pointer samples to the viewport before converting to canonical space", () => {
+    const path = normalizePointerPath(
+      [{ clientX: -100, clientY: -100 }, { clientX: 2000, clientY: 2000 }],
+      { left: 0, top: 0, width: 1080, height: 1920 },
+      viewport,
+    );
+    expect(path).toEqual([{ x: -1920, y: 180 }, { x: 0, y: -900 }]);
   });
 
   it("commits pointer-up samples in canonical coordinates using the viewport scale", () => {

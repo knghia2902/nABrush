@@ -12,6 +12,18 @@ export function viewportSize(viewport: DisplayViewport): { width: number; height
     : { width, height };
 }
 
+export function viewportBackingSize(viewport: DisplayViewport): { width: number; height: number } {
+  const size = viewportSize(viewport);
+  return {
+    width: Math.max(1, Math.round(size.width * viewport.scaleFactor)),
+    height: Math.max(1, Math.round(size.height * viewport.scaleFactor)),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function rotatePoint(point: CanonicalPoint, size: { width: number; height: number }, orientation: DisplayOrientation): CanonicalPoint {
   switch (orientation) {
     case "degrees90": return { x: size.height - point.y, y: point.x };
@@ -31,12 +43,17 @@ function inverseRotatePoint(point: CanonicalPoint, size: { width: number; height
 }
 
 export function canonicalToViewport(point: CanonicalPoint, viewport: DisplayViewport): CanonicalPoint {
-  const local = { x: point.x - viewport.origin.x, y: point.y - viewport.origin.y };
+  const local = {
+    x: clamp(point.x - viewport.origin.x, 0, viewport.logicalSize.width),
+    y: clamp(point.y - viewport.origin.y, 0, viewport.logicalSize.height),
+  };
   return rotatePoint(local, viewport.logicalSize, viewport.orientation);
 }
 
 export function viewportToCanonical(point: CanonicalPoint, viewport: DisplayViewport): CanonicalPoint {
-  const local = inverseRotatePoint(point, viewport.logicalSize, viewport.orientation);
+  const size = viewportSize(viewport);
+  const bounded = { x: clamp(point.x, 0, size.width), y: clamp(point.y, 0, size.height) };
+  const local = inverseRotatePoint(bounded, viewport.logicalSize, viewport.orientation);
   return { x: local.x + viewport.origin.x, y: local.y + viewport.origin.y };
 }
 
@@ -51,7 +68,7 @@ export function normalizePointerPath(samples: readonly PointerSample[], rect: Su
     if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
     if (!viewport) return [{ x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }];
     const size = viewportSize(viewport);
-    return [viewportToCanonical({ x: Math.min(size.width, Math.max(0, x * size.width)), y: Math.min(size.height, Math.max(0, y * size.height)) }, viewport)];
+    return [viewportToCanonical({ x: x * size.width, y: y * size.height }, viewport)];
   });
 }
 
@@ -109,8 +126,7 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
     const rect = canvas.getBoundingClientRect();
     const dpr = viewport.scaleFactor;
     const size = viewportSize(viewport);
-    const width = Math.max(1, Math.round(size.width * dpr));
-    const height = Math.max(1, Math.round(size.height * dpr));
+    const { width, height } = viewportBackingSize(viewport);
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
     const context = canvas.getContext("2d");

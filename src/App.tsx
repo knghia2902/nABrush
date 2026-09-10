@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ModeBadge } from "./components/ModeBadge";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ErrorBadge } from "./components/ErrorBadge";
 import { OverlaySurface } from "./components/OverlaySurface";
-import { addSceneItem } from "./state/overlay";
-import type { DisplayViewport, OverlayMode, SceneItem, StrokeSceneItem } from "./types/overlay";
+import { normalizeDisplayViewport } from "./types/overlay";
+import type { DisplayViewport, OverlayMode, SceneEventPayload, SceneItem, SceneSnapshot, StrokeSceneItem } from "./types/overlay";
 
 const DEFAULT_VIEWPORT: DisplayViewport = {
   id: "default",
@@ -21,18 +22,39 @@ export default function App() {
   const isSettingsWindow = windowLabel === "settings";
   const [mode, setMode] = useState<OverlayMode>("Hidden");
   const [scene, setScene] = useState<readonly SceneItem[]>([]);
+  const [sceneId, setSceneId] = useState("webview-scene");
   const [viewport, setViewport] = useState<DisplayViewport>(DEFAULT_VIEWPORT);
 
   useEffect(() => {
+    if (isSettingsWindow) return;
     let disposeMode: (() => void) | undefined;
     let disposeViewport: (() => void) | undefined;
+    let disposeScene: (() => void) | undefined;
+    void invoke<SceneSnapshot>("get_scene_snapshot").then((snapshot) => {
+      setSceneId(snapshot.sceneId);
+      setScene(snapshot.items);
+    }).catch(() => undefined);
     void listen<OverlayMode>("overlay-mode-changed", (event) => setMode(event.payload)).then((unlisten) => { disposeMode = unlisten; });
-    void listen<DisplayViewport>("overlay-viewport-changed", (event) => setViewport(event.payload)).then((unlisten) => { disposeViewport = unlisten; });
-    return () => { disposeMode?.(); disposeViewport?.(); };
-  }, []);
+    void listen<unknown>("overlay-viewport-changed", (event) => {
+      const next = normalizeDisplayViewport(event.payload);
+      if (next) setViewport(next);
+    }).then((unlisten) => { disposeViewport = unlisten; });
+    void listen<SceneEventPayload>("scene-changed", (event) => {
+      const payload = event.payload;
+      if (payload && Array.isArray(payload.items)) {
+        setSceneId(payload.sceneId);
+        setScene(payload.items);
+      }
+    }).then((unlisten) => { disposeScene = unlisten; });
+    return () => { disposeMode?.(); disposeViewport?.(); disposeScene?.(); };
+  }, [isSettingsWindow]);
 
   const commitStroke = (stroke: StrokeSceneItem) => {
-    setScene((current) => addSceneItem({ mode, scene: current, effects: [] }, stroke).scene);
+    void invoke<SceneSnapshot>("commit_scene_item", { item: stroke })
+      .then((snapshot) => {
+        setSceneId(snapshot.sceneId);
+        setScene(snapshot.items);
+      });
   };
 
   const sceneIds = scene.map((item) => item.id).join(",");
@@ -44,6 +66,7 @@ export default function App() {
       data-window-label={windowLabel}
       data-scene-count={!isSettingsWindow ? scene.length : undefined}
       data-scene-ids={!isSettingsWindow ? sceneIds : undefined}
+      data-scene-id={!isSettingsWindow ? sceneId : undefined}
       {...(!isSettingsWindow ? { "data-overlay-surface": "loaded" } : {})}
     >
       {isSettingsWindow ? (

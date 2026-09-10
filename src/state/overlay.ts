@@ -6,10 +6,18 @@ export {
   transition,
 } from "../types/overlay";
 export type {
+  CanonicalPoint,
+  DisplaySceneEventPayload,
+  DisplayOrientation,
+  DisplayViewport,
   ModeEffect,
   ModeState,
   OverlayMode,
   OverlayModeEvent,
+  SceneEventPayload,
   SceneItem,
+  SceneSnapshot,
+  SerializedDisplayViewport,
   ShortcutAction,
-} from "../types/overlay";
+  ViewportEventPayload,
+  } from "../types/overlay";
