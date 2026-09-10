@@ -82,8 +82,8 @@ Plans:
 - [ ] 02-01-PLAN.md — Canonical display model, viewport tracer, and topology coalescing
 - [ ] 02-02-PLAN.md — Multi-display registry, asynchronous windows, and shared scene boundary
 - [ ] 02-03-PLAN.md — Per-display canvas transforms and parity feedback UI
-- [ ] 02-05-PLAN.md — Shared shortcut, tool-order, and export-semantics parity contract
 - [ ] 02-04-PLAN.md — Native platform observers, E2E matrix, and support evidence
+- [ ] 02-05-PLAN.md — Shared shortcut, tool-order, and export-semantics parity contract
 
 **Wave 1**
 
