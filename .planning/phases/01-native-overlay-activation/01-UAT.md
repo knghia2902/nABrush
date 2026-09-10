@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 01-native-overlay-activation
 source: [01-VERIFICATION.md]
 started: 2026-09-10
@@ -8,7 +8,7 @@ updated: 2026-09-10
 
 ## Current Test
 
-Test 3 — Settings close-to-hide and recovery actions
+[testing complete]
 
 ## Tests
 
@@ -30,11 +30,11 @@ retest: "User confirmed pass after Plan 01-10: drawing, Click-through, Escape, a
 
 ### 3. Settings close-to-hide and recovery actions
 expected: Closing settings hides that window without quitting; shortcut conflict rolls back; initialization failure exposes Retry.
-result: [pending]
+result: pass
 reported: "settings mở lúc được lúc không"
 severity: major
 previous_result: issue
-retest: "Plan 01-11 keeps the Settings webview reusable and adds typed retry/error feedback; manual repeated open-close-open retest is required."
+retest: "User confirmed pass after Plan 01-11: Settings reopened reliably and recovery behavior worked."
 
 ### 4. Full-screen and permission limitations
 expected: Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
@@ -45,9 +45,9 @@ observed: "macOS global shortcut remained available during the manual full-scree
 ## Summary
 
 total: 4
-passed: 3
+passed: 4
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
