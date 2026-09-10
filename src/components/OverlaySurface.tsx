@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { CanonicalPoint, DisplayOrientation, DisplayViewport, OverlayMode, SceneItem, StrokePoint, StrokeSceneItem } from "../types/overlay";
 
@@ -76,6 +76,15 @@ export function createStroke(id: string, points: readonly StrokePoint[]): Stroke
   return { id, kind: "stroke", points };
 }
 
+export function transientStrokeForSamples(
+  samples: readonly PointerSample[],
+  rect: SurfaceRect,
+  viewport?: DisplayViewport,
+): StrokeSceneItem | null {
+  const points = normalizePointerPath(samples, rect, viewport);
+  return points.length < 2 ? null : createStroke("transient-stroke", points);
+}
+
 export function appendStroke(scene: readonly SceneItem[], stroke: StrokeSceneItem): readonly SceneItem[] {
   return scene.some((item) => item.id === stroke.id) ? scene : [...scene, stroke];
 }
@@ -90,9 +99,10 @@ export function drawScene(
   width: number,
   height: number,
   viewport?: DisplayViewport,
+  transientStroke?: StrokeSceneItem | null,
 ) {
   context.clearRect(0, 0, width, height);
-  for (const item of scene) {
+  for (const item of transientStroke ? [...scene, transientStroke] : scene) {
     if (item.kind !== "stroke" || item.points.length < 2) continue;
     context.beginPath();
     const [first, ...rest] = item.points;
@@ -119,6 +129,7 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
   const pointerIdRef = useRef<number | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
   const nextStrokeIdRef = useRef(0);
+  const [transientStroke, setTransientStroke] = useState<StrokeSceneItem | null>(null);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -136,8 +147,8 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
     context.lineWidth = 4;
     context.lineCap = "round";
     context.lineJoin = "round";
-    drawScene(context, scene, size.width, size.height, viewport);
-  }, [scene, viewport]);
+    drawScene(context, scene, size.width, size.height, viewport, transientStroke);
+  }, [scene, transientStroke, viewport]);
 
   useEffect(() => {
     redraw();
@@ -157,11 +168,13 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
+    setTransientStroke(null);
   };
 
   const moveStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current !== event.pointerId) return;
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
+    setTransientStroke(transientStrokeForSamples(samplesRef.current, event.currentTarget.getBoundingClientRect(), viewport));
   };
 
   const endStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -170,6 +183,7 @@ export function OverlaySurface({ mode, scene, viewport, onCommitStroke }: Props)
     const samples = samplesRef.current;
     pointerIdRef.current = null;
     samplesRef.current = [];
+    setTransientStroke(null);
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     const rect = canvas.getBoundingClientRect();
     const points = normalizePointerPath(samples, rect, viewport);

@@ -7,6 +7,7 @@ import {
   createStroke,
   drawScene,
   normalizePointerPath,
+  transientStrokeForSamples,
   viewportBackingSize,
   viewportToCanonical,
 } from "./OverlaySurface";
@@ -85,6 +86,25 @@ describe("OverlaySurface scene helpers", () => {
     expect(path).toEqual([{ x: -1920, y: 180 }, { x: -1720, y: 80 }]);
   });
 
+  it("builds a transient stroke from pointer moves without changing the retained scene", () => {
+    const scene: SceneItem[] = [];
+    const transient = transientStrokeForSamples(
+      [
+        { clientX: 0, clientY: 0 },
+        { clientX: 100, clientY: 200 },
+      ],
+      { left: 0, top: 0, width: 1080, height: 1920 },
+      viewport,
+    );
+
+    expect(transient).toEqual({
+      id: "transient-stroke",
+      kind: "stroke",
+      points: [{ x: -1920, y: 180 }, { x: -1720, y: 80 }],
+    });
+    expect(scene).toEqual([]);
+  });
+
   it("captures only in interactive mode and clears an empty canvas", () => {
     const modes: OverlayMode[] = ["VisibleInteractive", "VisibleClickThrough", "Hidden"];
     expect(modes.map(canvasPointerEvents)).toEqual(["auto", "none", "none"]);
@@ -99,5 +119,21 @@ describe("OverlaySurface scene helpers", () => {
     };
     drawScene(context, [] as SceneItem[], 800, 600);
     expect(calls).toEqual(["clear"]);
+  });
+
+  it("draws the transient stroke in the same frame as committed scene items", () => {
+    const calls: string[] = [];
+    const context = {
+      clearRect: () => calls.push("clear"),
+      beginPath: () => calls.push("begin"),
+      moveTo: () => calls.push("move"),
+      lineTo: () => calls.push("line"),
+      stroke: () => calls.push("stroke"),
+    };
+    const transient = createStroke("transient-stroke", [{ x: 0, y: 0 }, { x: 1, y: 1 }]);
+
+    drawScene(context, [] as SceneItem[], 800, 600, undefined, transient);
+
+    expect(calls).toEqual(["clear", "begin", "move", "line", "stroke"]);
   });
 });
