@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { OverlayMode, SceneItem } from "../types/overlay";
 import {
+  arrowheadPath,
   appendStroke,
   canonicalToViewport,
   canvasPointerEvents,
+  createGeometryItem,
   createStroke,
   drawScene,
   normalizePointerPath,
+  transientGeometryForGesture,
   transientSceneItemForGesture,
   transientStrokeForSamples,
   viewportBackingSize,
@@ -114,6 +117,69 @@ describe("OverlaySurface scene helpers", () => {
 
     expect(transient?.tool).toBe("highlighter");
     expect(transient?.style).toEqual(style);
+  });
+
+  it("builds canonical line and arrow candidates only after the 4px logical threshold", () => {
+    const style = { color: "#2563eb", opacity: 0.8, width: 3, fill: "none" as const, fillColor: "#2563eb", fillOpacity: 0.2, textSize: 24 };
+    const rect = { left: 0, top: 0, width: 1080, height: 1920 };
+    expect(transientGeometryForGesture(
+      [{ clientX: 0, clientY: 0 }, { clientX: 2, clientY: 2 }],
+      rect,
+      viewport,
+      "line",
+      style,
+    )).toBeNull();
+    const candidate = transientGeometryForGesture(
+      [{ clientX: 0, clientY: 0 }, { clientX: 20, clientY: 0 }],
+      rect,
+      viewport,
+      "arrow",
+      style,
+    );
+    expect(candidate).toEqual(createGeometryItem(
+      "transient-geometry",
+      "arrow",
+      { type: "line", start: { x: -1920, y: 180 }, end: { x: -1920, y: 160 } },
+      style,
+    ));
+    expect(candidate?.style).toBe(style);
+  });
+
+  it("creates one solid triangular arrowhead aligned to the start-to-end vector", () => {
+    const path = arrowheadPath({ x: 10, y: 10 }, { x: 30, y: 10 }, 2);
+    expect(path).not.toBeNull();
+    const [tip, left, right] = path!;
+    expect(tip).toEqual({ x: 30, y: 10 });
+    expect(left.x).toBeLessThan(30);
+    expect(right.x).toBeLessThan(30);
+    expect(left.y).toBeGreaterThan(right.y);
+  });
+
+  it("draws an arrow body and filled head without a second retained stroke", () => {
+    const calls: string[] = [];
+    const context = {
+      clearRect: () => calls.push("clear"),
+      beginPath: () => calls.push("begin"),
+      moveTo: () => calls.push("move"),
+      lineTo: () => calls.push("line"),
+      stroke: () => calls.push("stroke"),
+      closePath: () => calls.push("close"),
+      fill: () => calls.push("fill"),
+      save: () => calls.push("save"),
+      restore: () => calls.push("restore"),
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 0,
+      globalAlpha: 1,
+      globalCompositeOperation: "source-over",
+    };
+    const item = createGeometryItem("arrow-1", "arrow", { type: "line", start: { x: 10, y: 10 }, end: { x: 100, y: 10 } }, {
+      color: "#16a34a", opacity: 0.75, width: 2, fill: "none", fillColor: "#16a34a", fillOpacity: 0.18, textSize: 24,
+    });
+    drawScene(context, [item], 200, 100);
+    expect(calls).toEqual(["clear", "begin", "move", "line", "stroke", "save", "begin", "move", "line", "line", "close", "fill", "restore"]);
+    expect(context.fillStyle).toBe("#16a34a");
+    expect(context.globalAlpha).toBe(1);
   });
 
   it("captures only in interactive mode and clears an empty canvas", () => {

@@ -6,19 +6,23 @@ import type {
   CanonicalPoint,
   DisplayOrientation,
   DisplayViewport,
+  GeometrySceneItem,
+  LineGeometry,
   OverlayMode,
   SceneItem,
+  SceneGeometry,
   StrokePoint,
   StrokeSceneItem,
   StrokeTool,
 } from "../types/overlay";
 import { DEFAULT_PEN_STYLE } from "../types/overlay";
+import { isGeometryDragValid } from "../state/annotation";
 
 export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
 
 type CanvasRenderContext = Pick<CanvasRenderingContext2D, "clearRect" | "beginPath" | "moveTo" | "lineTo" | "stroke"> &
-  Partial<Pick<CanvasRenderingContext2D, "strokeStyle" | "lineWidth" | "lineCap" | "lineJoin" | "globalAlpha">> & {
+  Partial<Pick<CanvasRenderingContext2D, "closePath" | "fill" | "rect" | "ellipse" | "save" | "restore" | "strokeStyle" | "fillStyle" | "lineWidth" | "lineCap" | "lineJoin" | "globalAlpha">> & {
     globalCompositeOperation?: string;
   };
 
@@ -98,6 +102,21 @@ export function createStroke(
   return { id, kind: "stroke", tool, points, style };
 }
 
+export function createGeometryItem(
+  id: string,
+  tool: "line" | "arrow",
+  geometry: LineGeometry,
+  style: AnnotationStyle,
+): GeometrySceneItem;
+export function createGeometryItem(
+  id: string,
+  tool: GeometrySceneItem["tool"],
+  geometry: SceneGeometry,
+  style: AnnotationStyle,
+): GeometrySceneItem {
+  return { id, kind: "shape", tool, geometry, style };
+}
+
 export function transientSceneItemForGesture(
   samples: readonly PointerSample[],
   rect: SurfaceRect,
@@ -107,6 +126,20 @@ export function transientSceneItemForGesture(
 ): StrokeSceneItem | null {
   const points = normalizePointerPath(samples, rect, viewport);
   return points.length < 2 ? null : createStroke("transient-stroke", points, style, tool);
+}
+
+export function transientGeometryForGesture(
+  samples: readonly PointerSample[],
+  rect: SurfaceRect,
+  viewport: DisplayViewport | undefined,
+  tool: "line" | "arrow",
+  style: AnnotationStyle,
+): GeometrySceneItem | null {
+  const points = normalizePointerPath(samples, rect, viewport);
+  const start = points[0];
+  const end = points.at(-1);
+  if (!start || !end || !isGeometryDragValid(start, end)) return null;
+  return createGeometryItem("transient-geometry", tool, { type: "line", start, end }, style);
 }
 
 /** Backwards-compatible helper for the Phase 2 renderer tests and call sites. */
@@ -151,18 +184,93 @@ function drawStroke(context: CanvasRenderContext, item: StrokeSceneItem, width: 
   context.globalCompositeOperation = "source-over";
 }
 
+function viewportPoint(point: CanonicalPoint, width: number, height: number, viewport?: DisplayViewport): CanonicalPoint {
+  return viewport ? canonicalToViewport(point, viewport) : { x: point.x * width, y: point.y * height };
+}
+
+export type ArrowheadPath = readonly [CanonicalPoint, CanonicalPoint, CanonicalPoint];
+
+export function arrowheadPath(start: CanonicalPoint, end: CanonicalPoint, strokeWidth: number): ArrowheadPath | null {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const distance = Math.hypot(dx, dy);
+  if (!Number.isFinite(distance) || distance === 0) return null;
+  const unitX = dx / distance;
+  const unitY = dy / distance;
+  const length = Math.min(distance * 0.45, Math.max(8, strokeWidth * 4));
+  const halfWidth = Math.max(4, strokeWidth * 2.25);
+  const baseX = end.x - unitX * length;
+  const baseY = end.y - unitY * length;
+  const perpendicularX = -unitY;
+  const perpendicularY = unitX;
+  return [
+    end,
+    { x: baseX + perpendicularX * halfWidth, y: baseY + perpendicularY * halfWidth },
+    { x: baseX - perpendicularX * halfWidth, y: baseY - perpendicularY * halfWidth },
+  ];
+}
+
+export function drawLineGeometry(
+  context: CanvasRenderContext,
+  item: GeometrySceneItem,
+  width: number,
+  height: number,
+  viewport?: DisplayViewport,
+) {
+  if (item.geometry.type !== "line") return;
+  const start = viewportPoint(item.geometry.start, width, height, viewport);
+  const end = viewportPoint(item.geometry.end, width, height, viewport);
+  context.strokeStyle = item.style.color;
+  context.lineWidth = item.style.width;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.globalAlpha = item.style.opacity;
+  context.globalCompositeOperation = "source-over";
+  context.beginPath();
+  context.moveTo(start.x, start.y);
+  context.lineTo(end.x, end.y);
+  context.stroke();
+  context.globalAlpha = 1;
+}
+
+export function drawArrowGeometry(
+  context: CanvasRenderContext,
+  item: GeometrySceneItem,
+  width: number,
+  height: number,
+  viewport?: DisplayViewport,
+) {
+  if (item.geometry.type !== "line") return;
+  drawLineGeometry(context, item, width, height, viewport);
+  const path = arrowheadPath(item.geometry.start, item.geometry.end, item.style.width);
+  if (!path) return;
+  const [tip, left, right] = path.map((point) => viewportPoint(point, width, height, viewport));
+  context.save?.();
+  context.fillStyle = item.style.color;
+  context.globalAlpha = item.style.opacity;
+  context.beginPath();
+  context.moveTo(tip.x, tip.y);
+  context.lineTo(left.x, left.y);
+  context.lineTo(right.x, right.y);
+  context.closePath?.();
+  context.fill?.();
+  context.globalAlpha = 1;
+  context.restore?.();
+}
+
 export function drawScene(
   context: CanvasRenderContext,
   scene: readonly SceneItem[],
   width: number,
   height: number,
   viewport?: DisplayViewport,
-  transientSceneItem?: StrokeSceneItem | null,
+  transientSceneItem?: SceneItem | null,
 ) {
   context.clearRect(0, 0, width, height);
   for (const item of transientSceneItem ? [...scene, transientSceneItem] : scene) {
-    if (item.kind !== "stroke") continue;
-    drawStroke(context, item, width, height, viewport);
+    if (item.kind === "stroke") drawStroke(context, item, width, height, viewport);
+    if (item.kind === "shape" && item.tool === "line") drawLineGeometry(context, item, width, height, viewport);
+    if (item.kind === "shape" && item.tool === "arrow") drawArrowGeometry(context, item, width, height, viewport);
   }
 }
 
@@ -180,9 +288,9 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   const pointerIdRef = useRef<number | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
-  const gestureToolRef = useRef<StrokeTool>(activeTool === "highlighter" ? "highlighter" : "pen");
+  const gestureToolRef = useRef<AnnotationTool>(activeTool);
   const nextItemIdRef = useRef(0);
-  const [transientSceneItem, setTransientSceneItem] = useState<StrokeSceneItem | null>(null);
+  const [transientSceneItem, setTransientSceneItem] = useState<SceneItem | null>(null);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -221,7 +329,7 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   }, []);
 
   useEffect(() => {
-    if (mode !== "VisibleInteractive" || (activeTool !== "pen" && activeTool !== "highlighter")) cancelGesture();
+    if (mode !== "VisibleInteractive" || !["pen", "highlighter", "line", "arrow", "rectangle", "ellipse"].includes(activeTool)) cancelGesture();
   }, [activeTool, cancelGesture, mode]);
 
   useEffect(() => {
@@ -238,7 +346,7 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   }, [cancelGesture]);
 
   const beginGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (mode !== "VisibleInteractive" || event.button !== 0 || (activeTool !== "pen" && activeTool !== "highlighter")) return;
+    if (mode !== "VisibleInteractive" || event.button !== 0 || !["pen", "highlighter", "line", "arrow", "rectangle", "ellipse"].includes(activeTool)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
@@ -250,13 +358,12 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
   const moveGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current !== event.pointerId) return;
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
-    setTransientSceneItem(transientSceneItemForGesture(
-      samplesRef.current,
-      event.currentTarget.getBoundingClientRect(),
-      viewport,
-      gestureToolRef.current,
-      gestureStyleRef.current,
-    ));
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (gestureToolRef.current === "pen" || gestureToolRef.current === "highlighter") {
+      setTransientSceneItem(transientSceneItemForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current));
+    } else if (gestureToolRef.current === "line" || gestureToolRef.current === "arrow") {
+      setTransientSceneItem(transientGeometryForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current));
+    }
   };
 
   const endGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -265,8 +372,19 @@ export function OverlaySurface({ mode, scene, viewport, activeTool, toolStyle, o
     const samples = samplesRef.current;
     const style = gestureStyleRef.current;
     const tool = gestureToolRef.current;
-    const points = normalizePointerPath(samples, canvas.getBoundingClientRect(), viewport);
+    const rect = canvas.getBoundingClientRect();
+    const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+    const points = normalizePointerPath(samples, rect, viewport);
     cancelGesture();
+    if (outside) return;
+    if (tool === "line" || tool === "arrow") {
+      const geometryItem = transientGeometryForGesture(samples, rect, viewport, tool, style);
+      if (!geometryItem) return;
+      nextItemIdRef.current += 1;
+      onCommitSceneItem(createGeometryItem(`${tool}-${nextItemIdRef.current}`, tool, geometryItem.geometry as LineGeometry, style));
+      return;
+    }
+    if (tool !== "pen" && tool !== "highlighter") return;
     if (points.length < 2) return;
     nextItemIdRef.current += 1;
     onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool));

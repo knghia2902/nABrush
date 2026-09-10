@@ -435,6 +435,11 @@ fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), R
         (ShapeTool::Line | ShapeTool::Arrow, SceneGeometry::Line { start, end }) => {
             validate_point(start, "geometry.start")?;
             validate_point(end, "geometry.end")?;
+            if start.x == end.x && start.y == end.y {
+                return Err(RegistryError::InvalidSceneItem(
+                    "line geometry has no length".into(),
+                ));
+            }
         }
         (
             ShapeTool::Rectangle,
@@ -1015,5 +1020,53 @@ mod tests {
             assert!(scene.commit_scene_item(invalid).is_err());
             assert_eq!(scene.snapshot(), before);
         }
+    }
+
+    #[test]
+    fn scene_store_accepts_line_and_arrow_geometry_with_style_snapshots() {
+        let mut scene = SceneStore::default();
+        let line = serde_json::json!({
+            "id": "line-1",
+            "kind": "shape",
+            "tool": "line",
+            "geometry": {"type":"line","start":{"x":-100.0,"y":20.0},"end":{"x":300.0,"y":40.0}},
+            "style": {"color":"#2563eb","opacity":0.8,"width":2.0,"fill":"none","fillColor":"#2563eb","fillOpacity":0.18,"textSize":24.0}
+        });
+        let arrow = serde_json::json!({
+            "id": "arrow-1",
+            "kind": "shape",
+            "tool": "arrow",
+            "geometry": {"type":"line","start":{"x":300.0,"y":40.0},"end":{"x":600.0,"y":80.0}},
+            "style": {"color":"#16a34a","opacity":0.75,"width":3.0,"fill":"none","fillColor":"#16a34a","fillOpacity":0.18,"textSize":24.0}
+        });
+
+        scene.commit_scene_item(line).unwrap();
+        let snapshot = scene.commit_scene_item(arrow).unwrap();
+        assert_eq!(snapshot.items.len(), 2);
+        assert!(matches!(snapshot.items[0], SceneItem::Shape { tool: ShapeTool::Line, geometry: SceneGeometry::Line { .. }, .. }));
+        assert!(matches!(snapshot.items[1], SceneItem::Shape { tool: ShapeTool::Arrow, geometry: SceneGeometry::Line { .. }, .. }));
+    }
+
+    #[test]
+    fn scene_store_rejects_invalid_line_geometry_without_mutation_and_deduplicates_ids() {
+        let mut scene = SceneStore::default();
+        let valid = serde_json::json!({
+            "id": "line-1",
+            "kind": "shape",
+            "tool": "line",
+            "geometry": {"type":"line","start":{"x":0.0,"y":0.0},"end":{"x":10.0,"y":0.0}},
+            "style": {"color":"#2563eb","opacity":0.8,"width":2.0,"fill":"none","fillColor":"#2563eb","fillOpacity":0.18,"textSize":24.0}
+        });
+        scene.commit_scene_item(valid.clone()).unwrap();
+        let before = scene.snapshot();
+        for invalid in [
+            serde_json::json!({"id":"bad","kind":"shape","tool":"arrow","geometry":{"type":"line","start":{"x":0.0,"y":0.0},"end":{"x":0.0,"y":0.0}},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+            serde_json::json!({"id":"bad","kind":"shape","tool":"line","geometry":{"type":"rectangle","x":0.0,"y":0.0,"width":2.0,"height":2.0},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+            serde_json::json!({"id":"bad","kind":"shape","tool":"arrow","geometry":{"type":"line","start":{"x":0.0,"y":0.0},"end":{"x":1000001.0,"y":0.0}},"style":{"color":"#fff","opacity":0.9,"width":2.0,"fill":"none","fillColor":"#fff","fillOpacity":0.18,"textSize":24.0}}),
+        ] {
+            assert!(scene.commit_scene_item(invalid).is_err());
+            assert_eq!(scene.snapshot(), before);
+        }
+        assert_eq!(scene.commit_scene_item(valid).unwrap(), before);
     }
 }

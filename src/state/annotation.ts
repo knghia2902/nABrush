@@ -1,5 +1,5 @@
 import { TOOL_ORDER } from "../types/platform-parity";
-import type { AnnotationStyle } from "../types/overlay";
+import type { AnnotationStyle, CanonicalPoint, ShapeBounds } from "../types/overlay";
 import type { AnnotationTool } from "../types/platform-parity";
 
 export { TOOL_ORDER } from "../types/platform-parity";
@@ -38,6 +38,32 @@ export type AnnotationState = Readonly<{
   activeTool: AnnotationTool;
   stylesByTool: Readonly<Record<AnnotationTool, AnnotationStyle>>;
 }>;
+
+export const MIN_GEOMETRY_DRAG = 4;
+
+export function geometryDistance(start: CanonicalPoint, end: CanonicalPoint): number {
+  return Math.hypot(end.x - start.x, end.y - start.y);
+}
+
+export function isGeometryDragValid(start: CanonicalPoint, end: CanonicalPoint): boolean {
+  return Number.isFinite(start.x)
+    && Number.isFinite(start.y)
+    && Number.isFinite(end.x)
+    && Number.isFinite(end.y)
+    && geometryDistance(start, end) >= MIN_GEOMETRY_DRAG;
+}
+
+export function normalizeShapeBounds(start: CanonicalPoint, end: CanonicalPoint): ShapeBounds {
+  return {
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  };
+}
+
+/** Compatibility name for callers that normalize any rectangular shape bounds. */
+export const normalizeGeometryBounds = normalizeShapeBounds;
 
 export function createInitialAnnotationState(): AnnotationState {
   const stylesByTool = Object.fromEntries(

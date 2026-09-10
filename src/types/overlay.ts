@@ -62,12 +62,15 @@ export type LineGeometry = Readonly<{
   end: CanonicalPoint;
 }>;
 
-export type RectangleGeometry = Readonly<{
-  type: "rectangle";
+export type ShapeBounds = Readonly<{
   x: number;
   y: number;
   width: number;
   height: number;
+}>;
+
+export type RectangleGeometry = ShapeBounds & Readonly<{
+  type: "rectangle";
 }>;
 
 export type EllipseGeometry = Readonly<{
@@ -77,7 +80,8 @@ export type EllipseGeometry = Readonly<{
   radiusY: number;
 }>;
 
-export type SceneGeometry = LineGeometry | RectangleGeometry | EllipseGeometry;
+export type ShapeGeometry = RectangleGeometry | EllipseGeometry;
+export type SceneGeometry = LineGeometry | ShapeGeometry;
 
 export type ShapeSceneItem = Readonly<{
   id: string;
@@ -86,6 +90,7 @@ export type ShapeSceneItem = Readonly<{
   geometry: SceneGeometry;
   style: AnnotationStyle;
 }>;
+export type GeometrySceneItem = ShapeSceneItem;
 
 export type TextSceneItem = Readonly<{
   id: string;
