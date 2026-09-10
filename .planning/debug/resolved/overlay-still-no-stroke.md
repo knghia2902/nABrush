@@ -1,5 +1,5 @@
 ---
-status: investigating
+status: resolved
 trigger: "Vẫn chưa vẽ được"
 created: "2026-09-10"
 updated: "2026-09-10"
@@ -20,7 +20,7 @@ updated: "2026-09-10"
 - hypothesis: A dynamically-created overlay WebView misses the `VisibleInteractive` event during startup, so its canvas remains `pointer-events: none`; also verify native hit-testing and the pointer-to-commit path.
 - test: Trace controller show/reconcile timing, dynamic WebView initialization, OverlaySurface mode hydration, and native click-through state; add a focused regression test or fix.
 - expecting: The visible overlay window must hydrate its current mode/viewport after it loads and accept pointer events, then commit and render a stroke.
-- next_action: archive resolved session and commit the focused fix
+- next_action: none
 
 ## Evidence
 
