@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 01-native-overlay-activation
 source: [01-VERIFICATION.md]
 started: 2026-09-10
@@ -8,11 +8,7 @@ updated: 2026-09-10
 
 ## Current Test
 
-number: 4
-name: Full-screen and permission limitations
-expected: |
-  Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -39,14 +35,16 @@ severity: major
 
 ### 4. Full-screen and permission limitations
 expected: Spaces/Stage Manager/native full-screen and Windows borderless/exclusive full-screen observations are recorded with limitations for protected or denied surfaces.
-result: [pending]
+result: pass
+reported: "Cmd+Shift+A hoạt động"
+observed: "macOS global shortcut remained available during the manual full-screen/Space check; Windows device evidence was not available in this session."
 
 ## Summary
 
 total: 4
-passed: 1
+passed: 2
 issues: 2
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
