@@ -7,7 +7,7 @@ pub struct LifecycleTracer {
 
 impl LifecycleTracer {
     pub fn new() -> Self {
-        Self { snapshot: LifecycleSnapshot { mode: OverlayMode::Hidden, surface_id: 1, geometry: None } }
+        Self { snapshot: LifecycleSnapshot { mode: OverlayMode::Hidden, surface_id: 1, geometry: None, scene_ref: "webview-scene".into(), click_through: false } }
     }
     pub fn show(&mut self, geometry: DisplayGeometry) {
         self.snapshot.mode = OverlayMode::VisibleInteractive;

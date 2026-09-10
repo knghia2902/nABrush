@@ -1,0 +1,4 @@
+{
+  "modes": ["Hidden", "VisibleInteractive", "VisibleClickThrough"],
+  "actions": ["Show", "Hide", "ToggleVisibility", "ToggleClickThrough", "Esc", "Retry"]
+}

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod controller;
+mod mode_schema;
 mod platform;
 mod tracer;
 mod tray;
