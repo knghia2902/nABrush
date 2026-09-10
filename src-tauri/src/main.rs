@@ -27,6 +27,7 @@ fn setup<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     app.manage(errors::ErrorStore::default());
     app.manage(shortcut::ShortcutRegistry::default());
     app.manage(startup::StartupAdapter::default());
+    app.manage(platform::TopologyRefreshState::default());
     tray::install(app.handle())?;
     shortcut::register_runtime(app.handle())?;
     platform::install_observers(app.handle())?;
