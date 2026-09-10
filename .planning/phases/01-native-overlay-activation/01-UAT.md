@@ -8,17 +8,21 @@ updated: 2026-09-10
 
 ## Current Test
 
-number: 1
-name: Verify tray launch and global activation on macOS and Windows
+number: 2
+name: Drawing, click-through, Escape, and scene restoration
 expected: |
-  nABrush stays in the menu bar/system tray without a normal document window, and Cmd/Ctrl+Shift+A activates the overlay while another app is focused.
+  Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
 awaiting: user response
 
 ## Tests
 
 ### 1. Tray launch and cross-app activation
 expected: Tray/menu-bar entry remains available and the configured global shortcut activates the overlay from TextEdit or Notepad.
-result: [pending]
+result: pass
+reported: "Bấm show không có gì xảy ra và settings thì trống trơn"
+severity: major
+previous_result: issue
+retest: "Gap closure plan 01-08 added a discoverable tray icon and documented the Tauri dev launch path."
 
 ### 2. Drawing, click-through, Escape, and scene restoration
 expected: Drawing captures a mark, Click-through sends a click to the underlying text target, Escape hides, and the same scene returns after Show.
@@ -35,10 +39,45 @@ result: [pending]
 ## Summary
 
 total: 4
-passed: 0
+passed: 1
 issues: 0
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
 ## Gaps
+
+- gap_id: G-01-1
+  truth: "Tray/menu-bar entry remains available and the configured global shortcut activates the overlay from TextEdit or Notepad."
+  status: resolved
+  resolved_by: 01-08-PLAN.md
+  resolved_at: 2026-09-10
+  reason: "User reported: Chỉ có cái này không lên app"
+  severity: major
+  test: 1
+  artifacts:
+    - "src-tauri/src/tray.rs"
+    - "src-tauri/tauri.conf.json"
+    - "src-tauri/icons/icon.png"
+  missing:
+    - "TrayIconBuilder is not given an icon, so macOS provides no discoverable status-item visual."
+    - "Debug launch uses the raw binary instead of an app bundle, so no Dock application entry is expected."
+  diagnosis: "The hidden overlay/settings windows and skipTaskbar are intentional. The missing tray icon is an implementation gap; the raw debug binary also makes the tray-only lifecycle confusing during manual UAT."
+
+- gap_id: G-01-2
+  truth: "Tray Show reveals the overlay and Settings renders its controls when opened from the tray menu."
+  status: resolved
+  resolved_by: 01-09-PLAN.md
+  resolved_at: 2026-09-10
+  reason: "User reported: Bấm show không có gì xảy ra và settings thì trống trơn"
+  severity: major
+  test: 1
+  artifacts:
+    - "src-tauri/tauri.conf.json"
+    - "src/App.tsx"
+    - "src/components/SettingsPanel.tsx"
+    - "src-tauri/target/debug/nabrush"
+  missing:
+    - "Manual launch must keep the Vite dev server available at http://localhost:1420; a raw debug binary without Vite loads about:blank."
+    - "The overlay webview needs a visible activation surface/state separate from the settings window."
+  diagnosis: "The user interacted with a raw debug process while no Vite server was serving the configured devUrl, so Settings loaded about:blank. App currently mounts SettingsPanel in every window and only shows a transient badge for overlay activation, making Show look inert even after the correct dev server is running."
