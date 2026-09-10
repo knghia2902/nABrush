@@ -44,3 +44,42 @@ Pointer delivery is recorded against concrete fixtures: macOS TextEdit with a kn
 The app enables Tauri `macOSPrivateApi` for transparent, always-on-top overlay behavior. macOS direct distribution therefore requires a Developer ID signed and notarized build; the setting is not a claim of App Store eligibility. Spaces, Stage Manager, and native full-screen behavior must be checked on a real macOS device. Exclusive full-screen games or protected surfaces may prevent an overlay from appearing or receiving input. On Windows, borderless full-screen is the supported observation target; exclusive full-screen can place the app below the display compositor. Permission-denied or protected-content outcomes are recorded as limitations rather than treated as successful support.
 
 The primary-display contract intentionally leaves multi-monitor placement, drawing/rendering tools, screenshot capture/export, session persistence, and billing outside Phase 1.
+
+## Phase 2 display topology and parity contract
+
+The Phase 2 automated baseline runs the same Rust, frontend, debug-build, and
+`phase2-matrix` WebDriver checks on macOS 13+ and Windows 10 22H2+. Fixture
+results prove descriptor reconciliation and shared parity values; they do not
+replace physical display evidence or compositor testing.
+
+| Behavior | macOS 13+ | Windows 10 22H2+ | Evidence boundary |
+| --- | --- | --- | --- |
+| Mixed-DPI placement | Manual hardware evidence required | Manual hardware evidence required | Two displays with independent scale factors |
+| Negative origin | Manual hardware evidence required | Manual hardware evidence required | Place one display left or above the native origin |
+| Rotation | Manual hardware evidence required | Manual hardware evidence required | Rotate one display while the overlay is visible |
+| Hot-plug and DPI/size change | Manual hardware evidence required | Manual hardware evidence required | Add/remove and reconfigure without restart |
+| Borderless/native full-screen | Supported when the compositor admits the overlay; verify manually | Supported for borderless observation targets; verify manually | Native full-screen app on a physical device |
+| Exclusive full-screen | Limited or Unsupported when the Space/compositor blocks the overlay | Limited or Unsupported when the compositor owns the surface | Never infer support from always-on-top alone |
+| Global mode parity | Automated fixture plus manual shortcut evidence | Automated fixture plus manual shortcut evidence | `Show`, `Hide`, click-through, and `Esc` on both OSes |
+| Tool-order contract parity | Automated `platform_parity_contract` comparison | Automated `platform_parity_contract` comparison | Exact ordered TypeScript/Rust fixture |
+| Export-semantics contract parity | Automated fixture comparison | Automated fixture comparison | One canonical composition pass at display density |
+| Scene retention after display removal | Automated fixture plus manual reappearance evidence | Automated fixture plus manual reappearance evidence | Scene ID/items survive removal and re-add |
+| Protected/permission/compositor failure | Supported recovery path; scene remains alive | Supported recovery path; scene remains alive | Scoped actionable error and Retry evidence |
+
+### Phase 2 device evidence
+
+Record each physical run with the OS version, display arrangement, observed
+classification, and an evidence location. Keep exclusive full-screen as
+**Limited** or **Unsupported** whenever the compositor prevents the overlay.
+
+| OS/device | OS version | Display arrangement and test | Result (Supported/Limited/Unsupported) | Evidence |
+| --- | --- | --- | --- | --- |
+| macOS device | Pending manual run | Mixed-DPI, negative origin, rotation, hot-plug, borderless/native full-screen, exclusive full-screen | Pending manual run | Pending `02-04` evidence reference |
+| Windows device | Pending manual run | Mixed-DPI, negative origin, rotation, hot-plug, borderless/native full-screen, exclusive full-screen | Pending manual run | Pending `02-04` evidence reference |
+
+The following rows are intentionally manual-only until dated device evidence is
+recorded: mixed-DPI, negative-origin alignment, rotation, hot-plug and
+DPI/size changes, borderless/native full-screen persistence, exclusive
+full-screen limitation, global mode parity across displays, and recovery from a
+blocked or protected surface. Do not claim Windows DISP-02 through DISP-04
+completion from macOS results or automated fixtures alone.

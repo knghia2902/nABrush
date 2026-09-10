@@ -13,8 +13,10 @@ mod tracer;
 mod tray;
 
 use controller::AppController;
+use display::{DisplayDescriptor, DisplayId, DisplayOrientation, DisplayPoint, DisplaySize, DisplaySnapshot};
 use overlay_registry::{OverlayRegistry, SceneSnapshot, SceneStore};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::sync::Mutex;
 use tauri::{Manager, Runtime};
 
@@ -113,6 +115,95 @@ fn test_inject_overlay_error(
     }
 }
 
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TopologyFixtureResult {
+    stage: String,
+    added: Vec<String>,
+    removed: Vec<String>,
+    updated: Vec<String>,
+    viewport_labels: Vec<String>,
+    scene_id: String,
+}
+
+#[cfg(debug_assertions)]
+fn topology_fixture_snapshot(stage: &str) -> Result<DisplaySnapshot, String> {
+    let descriptor = |id: &str,
+                      x: f64,
+                      width: f64,
+                      height: f64,
+                      scale_factor: f64,
+                      orientation: DisplayOrientation|
+     -> Result<DisplayDescriptor, String> {
+        let id = DisplayId::new(id).map_err(|error| error.to_string())?;
+        let descriptor = DisplayDescriptor {
+            id,
+            origin: DisplayPoint { x, y: 0.0 },
+            logical_size: DisplaySize { width, height },
+            scale_factor,
+            orientation,
+        };
+        descriptor.validate().map_err(|error| error.to_string())?;
+        Ok(descriptor)
+    };
+
+    let snapshot = match stage {
+        "two" | "readded" => vec![
+            descriptor("fixture-main", 0.0, 1920.0, 1080.0, 1.0, DisplayOrientation::Degrees0)?,
+            descriptor("fixture-left", -1280.0, 1280.0, 1024.0, 1.5, DisplayOrientation::Degrees0)?,
+        ],
+        "updated" => vec![
+            descriptor("fixture-main", 0.0, 1920.0, 1080.0, 1.0, DisplayOrientation::Degrees0)?,
+            descriptor("fixture-left", -1024.0, 1024.0, 1280.0, 2.0, DisplayOrientation::Degrees90)?,
+        ],
+        "removed" => Vec::new(),
+        other => return Err(format!("unknown topology fixture stage: {other}")),
+    };
+
+    Ok(DisplaySnapshot {
+        displays: snapshot
+            .into_iter()
+            .map(|descriptor| (descriptor.id.clone(), descriptor))
+            .collect::<BTreeMap<_, _>>(),
+    })
+}
+
+#[tauri::command]
+fn test_reconcile_topology_fixture(
+    stage: String,
+    app: tauri::AppHandle,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<TopologyFixtureResult, String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (stage, app, registry);
+        return Err("Topology fixtures are available only in debug builds".into());
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        let snapshot = topology_fixture_snapshot(&stage)?;
+        let mut registry = registry.lock().expect("registry mutex poisoned");
+        let changes = registry
+            .reconcile_native_async(&app, snapshot)
+            .map_err(|error| error.to_string())?;
+        let viewport_labels = registry
+            .viewports()
+            .values()
+            .map(|viewport| viewport.label.clone())
+            .collect();
+
+        Ok(TopologyFixtureResult {
+            stage,
+            added: changes.added.into_iter().map(|id| id.as_str().to_owned()).collect(),
+            removed: changes.removed.into_iter().map(|id| id.as_str().to_owned()).collect(),
+            updated: changes.updated.into_iter().map(|id| id.as_str().to_owned()).collect(),
+            viewport_labels,
+            scene_id: registry.scene_ref().to_owned(),
+        })
+    }
+}
+
 #[tauri::command]
 fn get_scene_snapshot(state: tauri::State<'_, Mutex<SceneStore>>) -> SceneSnapshot {
     state.lock().expect("scene mutex poisoned").snapshot()
@@ -161,6 +252,7 @@ fn main() {
             test_show_settings,
             test_request_close_settings,
             test_inject_overlay_error,
+            test_reconcile_topology_fixture,
         ])
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| Ok(setup(app)?))
