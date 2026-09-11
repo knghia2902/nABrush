@@ -229,6 +229,8 @@ export function AnnotationToolbar({
             title="Move annotation toolbar"
             aria-keyshortcuts="Arrow keys, Shift+Arrow keys"
             data-toolbar-drag-handle="true"
+            data-toolbar-keyboard-step={TOOLBAR_KEYBOARD_STEP}
+            data-toolbar-keyboard-shift-step={TOOLBAR_KEYBOARD_SHIFT_STEP}
             data-scene-excluded="true"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
