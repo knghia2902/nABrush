@@ -52,6 +52,8 @@ in for native or cross-platform evidence.
 | 03-06-02 | 06 | 6 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-06 | `pnpm exec wdio run wdio.conf.ts --suite phase3-tools` | 2026-09-11T01:46:40Z | 1 | macOS provider diagnostics passed (6 checks); overlay switch timed out, then `window not found` failed the `before all` hook. No native assertions ran; cleanup warned `sessionId` was required. | WebDriver cannot switch to overlay, preview is absent, retained count is not exactly one, shape style fails, or text/eraser/click-through assertions fail. | FAIL (macOS native) |
 | 03-07-01 | 07 | 7 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-07-01 | `test -f .planning/ROADMAP.md && rg -q '^\\*\\*Goal\\*\\*: As a presenter, I want to create basic annotations quickly and smoothly on the overlay scene using pointer or keyboard controls, so that I can explain on-screen content without leaving the active application\\.$' .planning/ROADMAP.md && node "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/gsd-tools.cjs" query user-story.validate --story "As a presenter, I want to create basic annotations quickly and smoothly on the overlay scene using pointer or keyboard controls, so that I can explain on-screen content without leaving the active application." --pick valid | rg -q '^true$'` | 2026-09-11; task gate | 0 | Roadmap file exists, exact goal line matches, and `user-story.validate` returned `true`. | Exact Phase 3 goal missing/altered or validator returns false. | PASS |
 | 03-07-02 | 07 | 7 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-07-02 | `test -f .planning/phases/03-core-annotation-tools/03-VALIDATION.md && for id in 03-01-01 03-01-02 03-02-01 03-02-02 03-03-01 03-03-02 03-04-01 03-04-02 03-05-01 03-05-02 03-06-01 03-06-02 03-07-01 03-07-02; do rg -q "$id" .planning/phases/03-core-annotation-tools/03-VALIDATION.md || exit 1; done && rg -q '^status: (gaps_found|complete)$' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -qi 'macOS' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -qi 'Windows' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q 'phase3-tools' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -qi 'PASS|FAIL|NOT RUN|PENDING' .planning/phases/03-core-annotation-tools/03-VALIDATION.md` | 2026-09-11; after reconstruction | 0 | Ledger contains all 14 IDs, explicit `gaps_found`, macOS/Windows boundaries, native suite command, and PASS/FAIL/PENDING/NOT RUN markers. | Any task ID, platform boundary, command, status token, or incomplete-state field is absent. | PASS |
+| 03-08-01 | 08 | 8 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-08-01 | `test -f .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q '^## Multi-source coverage audit$' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && for id in GOAL DRAW-01 DRAW-02 DRAW-03 DRAW-04 DRAW-05 DRAW-06 R-01 R-02 R-03 R-04 R-05 R-06 R-07 R-08 R-09 D-01 D-02 D-03 D-04 D-05 D-06 D-07 D-08 D-09 D-10 D-11 D-12 D-13 D-14 D-15 D-16 D-17; do rg -q "$id" .planning/phases/03-core-annotation-tools/03-VALIDATION.md || exit 1; done && for id in 03-05 03-06 03-07 03-08; do rg -q "$id" .planning/phases/03-core-annotation-tools/03-VALIDATION.md || exit 1; done` | 2026-09-11T02:04:03Z | 0 | Final audit contains the GOAL, six DRAW requirements, R-01 through R-09, D-01 through D-17, and concrete plan references through 03-08; command passed. | Audit heading, source ID, or final gap-plan reference is missing. | PASS |
+| 03-08-02 | 08 | 8 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06 | T-03-08-02 | `test -f .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q '^status: (gaps_found|complete)$' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q '^nyquist_compliant: (false|true)$' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q '^wave_0_complete: (false|true)$' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q 'macOS' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q 'Windows' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q 'PASS|FAIL|PENDING|NOT RUN' .planning/phases/03-core-annotation-tools/03-VALIDATION.md && rg -q 'Approval|Sign-Off|sign-off' .planning/phases/03-core-annotation-tools/03-VALIDATION.md` | 2026-09-11T02:04:03Z | 0 | Final status/sign-off fields, platform boundaries, and result tokens are present; incomplete evidence remains explicit. | Missing status, platform/manual result, or approval/sign-off field makes the artifact ineligible for verification. | PASS |
 
 ## Local Automated Evidence
 
@@ -117,14 +119,22 @@ without host-observed evidence.
 
 ## Wave 0 and Sign-Off State
 
-- [x] All 14 tasks have an automated verify command recorded in this ledger.
+- [x] All 16 tasks have an automated verify command recorded in this ledger.
 - [x] Sampling continuity is preserved; no three consecutive tasks lack an automated verify.
 - [x] Frontend state/renderer tests, inline native registry tests, and the `phase3-tools` fixture exist.
 - [x] Commands contain no watch-mode flags.
 - [x] Local feedback is within the documented latency target.
 - [ ] Windows native runner/evidence is available and attached.
 - [ ] Required macOS native/manual behavior is fully observed.
+- [ ] Phase approval/sign-off is complete; it remains **PENDING** while native/manual and Windows evidence is absent.
 - [ ] `nyquist_compliant: true` — intentionally remains false while native/manual/platform evidence is incomplete.
+
+## Evidence-consistent status
+
+- **Phase status:** `gaps_found` — the latest macOS native attempt failed before gesture assertions, Windows has no available host result, and manual behavior remains pending.
+- **Nyquist compliance:** `false` — source/unit/native-store checks pass, but required host-observed behavior is not fully proven.
+- **Wave 0 completion:** `false` — the executable fixtures and commands exist, but the required native/platform evidence is not complete.
+- **Approval/sign-off:** **PENDING** — no complete phase approval is claimed until the macOS native/manual and Windows evidence rows are resolved.
 
 ## Scope and Evidence Rules
 
@@ -180,4 +190,4 @@ without host-observed evidence.
 | CONTEXT | D-16 | Type-specific padded hit-test | 03-03-01, 03-03-02, 03-06-02, 03-08-01 | COVERED (traceability) |
 | CONTEXT | D-17 | Hover highlight before click mutation | 03-03-02, 03-04-01, 03-06-02, 03-08-01 | COVERED (traceability) |
 
-**Approval:** pending
+**Approval:** PENDING — native macOS/manual evidence and the separate Windows smoke/UAT result are still required.
