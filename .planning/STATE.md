@@ -34,7 +34,7 @@ Total Plans in Phase: 11
 Phase: 03 (core-annotation-tools) — READY TO EXECUTE
 Plan: 5 of 8
 Status: Ready to execute
-Last activity: 2026-09-11 — Completed quick task 260911-e0s: Đưa toolbar bên trái, thiết kế lại theo cảm hứng từ mẫu và cho phép kéo di chuyển
+Last activity: 2026-09-11 — Completed quick task 260911-udb: Thu gọn khung nhập và cho phép kéo text đã viết
 
 Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
 
@@ -107,6 +107,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260911-e0s | Đưa toolbar bên trái, thiết kế lại theo cảm hứng từ mẫu và cho phép kéo di chuyển | 2026-09-11 | 2ddfa6e | [260911-e0s-a-toolbar-b-n-tr-i-thi-t-k-l-i-theo-c-m-](./quick/260911-e0s-a-toolbar-b-n-tr-i-thi-t-k-l-i-theo-c-m-/) |
+| 260911-udb | Thu gọn khung nhập và cho phép kéo text đã viết | 2026-09-11 | 79d8882 | [260911-udb-allow-committed-text-to-move-and-shrink-](./quick/260911-udb-allow-committed-text-to-move-and-shrink-/) |
 
 ## Deferred Items
 
