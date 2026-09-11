@@ -469,7 +469,13 @@ export function drawScene(
   hoveredItemId?: string | null,
 ) {
   context.clearRect(0, 0, width, height);
-  for (const item of transientSceneItem ? [...scene, transientSceneItem] : scene) {
+  const renderedScene = transientSceneItem
+    ? scene.map((item) => item.id === transientSceneItem.id ? transientSceneItem : item)
+    : scene;
+  const items = transientSceneItem && !scene.some((item) => item.id === transientSceneItem.id)
+    ? [...renderedScene, transientSceneItem]
+    : renderedScene;
+  for (const item of items) {
     if (item.kind === "stroke") drawStroke(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "line") drawLineGeometry(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "arrow") drawArrowGeometry(context, item, width, height, viewport);
@@ -493,6 +499,7 @@ type Props = {
   onUpdateTextDraft: (value: string) => void;
   onCancelTextDraft: () => void;
   onCommitSceneItem: (item: SceneItem) => void;
+  onMoveTextItem: (id: string, anchor: CanonicalPoint) => void;
   onEraseSceneItem: (id: string) => void;
 };
 
@@ -518,6 +525,7 @@ export function OverlaySurface({
   onUpdateTextDraft,
   onCancelTextDraft,
   onCommitSceneItem,
+  onMoveTextItem,
   onEraseSceneItem,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -525,6 +533,8 @@ export function OverlaySurface({
   const pointerIdRef = useRef<number | null>(null);
   const pointerSequenceRef = useRef(false);
   const suppressMouseUpRef = useRef(false);
+  const suppressTextClickRef = useRef(false);
+  const textDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
   const textShiftRef = useRef(false);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
@@ -575,6 +585,7 @@ export function OverlaySurface({
     const canvas = canvasRef.current;
     const pointerId = pointerIdRef.current;
     pointerIdRef.current = null;
+    textDragRef.current = null;
     samplesRef.current = [];
     setTransientSceneItem(null);
     setGesturePhase("idle");
@@ -583,7 +594,7 @@ export function OverlaySurface({
   }, []);
 
   useEffect(() => {
-    if (mode !== "VisibleInteractive" || (!isStrokeTool(activeTool) && !isShapeTool(activeTool))) cancelGesture();
+    cancelGesture();
     if (mode !== "VisibleInteractive" || activeTool !== "text") onCancelTextDraft();
   }, [activeTool, cancelGesture, mode, onCancelTextDraft]);
 
@@ -616,9 +627,28 @@ export function OverlaySurface({
   const beginGesture = (event: CanvasGestureEvent) => {
     if (mode !== "VisibleInteractive" || event.button !== 0) return;
     if (activeTool === "text") {
+      if (textDraft || pointerIdRef.current !== null) return;
+      const point = eventPoint(event);
+      if (!point) return;
+      const targetId = findTopmostHit(scene, point, { hitPadding: HIT_TEST_PADDING, measureText: measureTextForHitTest });
+      const target = targetId ? scene.find((item): item is TextSceneItem => item.id === targetId && item.kind === "text") : undefined;
+      if (target) {
+        if (event.canCapture) event.currentTarget.setPointerCapture(event.pointerId);
+        pointerIdRef.current = event.pointerId;
+        textDragRef.current = {
+          id: target.id,
+          pointerId: event.pointerId,
+          offsetX: point.x - target.anchor.x,
+          offsetY: point.y - target.anchor.y,
+        };
+        setTransientSceneItem({ ...target, anchor: { ...target.anchor } });
+        setGesturePhase("pressed");
+        suppressTextClickRef.current = true;
+        return;
+      }
+      suppressTextClickRef.current = false;
       if (!textDraft) {
-        const point = eventPoint(event);
-        if (point) onPlaceTextDraft(point, { ...toolStyle });
+        onPlaceTextDraft(point, { ...toolStyle });
       }
       return;
     }
@@ -648,6 +678,21 @@ export function OverlaySurface({
       setHoveredItemId(point ? findTopmostHit(scene, point, { hitPadding: HIT_TEST_PADDING, measureText: measureTextForHitTest }) : null);
       return;
     }
+    const textDrag = textDragRef.current;
+    if (textDrag && pointerIdRef.current === event.pointerId) {
+      const point = eventPoint(event);
+      const target = scene.find((item): item is TextSceneItem => item.id === textDrag.id && item.kind === "text");
+      if (!point || !target) return;
+      setTransientSceneItem({
+        ...target,
+        anchor: {
+          x: point.x - textDrag.offsetX,
+          y: point.y - textDrag.offsetY,
+        },
+      });
+      setGesturePhase("previewing");
+      return;
+    }
     if (pointerIdRef.current !== event.pointerId) return;
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
     const rect = event.currentTarget.getBoundingClientRect();
@@ -669,7 +714,24 @@ export function OverlaySurface({
     const terminalAction = gestureTerminalAction(pointerIdRef.current, event.pointerId, outside);
     if (terminalAction === "ignore") return;
     if (terminalAction === "cancel") {
+      if (textDragRef.current?.pointerId === event.pointerId) suppressTextClickRef.current = true;
       cancelGesture();
+      return;
+    }
+    const textDrag = textDragRef.current;
+    if (textDrag?.pointerId === event.pointerId) {
+      const point = eventPoint(event);
+      const target = scene.find((item): item is TextSceneItem => item.id === textDrag.id && item.kind === "text");
+      if (point && target) {
+        const anchor = {
+          x: point.x - textDrag.offsetX,
+          y: point.y - textDrag.offsetY,
+        };
+        cancelGesture();
+        onMoveTextItem(textDrag.id, anchor);
+      } else {
+        cancelGesture();
+      }
       return;
     }
     samplesRef.current = [...samplesRef.current, { clientX: event.clientX, clientY: event.clientY }];
@@ -710,6 +772,9 @@ export function OverlaySurface({
 
   const placeTextFromMouseActivation = (event: Pick<ReactMouseEvent<HTMLCanvasElement>, "clientX" | "clientY" | "currentTarget">) => {
     if (mode !== "VisibleInteractive" || activeTool !== "text" || textDraft) return;
+    const point = normalizePointerPath([event], event.currentTarget.getBoundingClientRect(), viewport)[0];
+    const targetId = point ? findTopmostHit(scene, point, { hitPadding: HIT_TEST_PADDING, measureText: measureTextForHitTest }) : null;
+    if (targetId && scene.some((item) => item.id === targetId && item.kind === "text")) return;
     beginGesture({
       button: 0,
       clientX: event.clientX,
@@ -779,17 +844,27 @@ export function OverlaySurface({
     // A few WebKit/native input paths deliver the click activation but skip
     // the React pointerdown branch. Text placement is a click interaction, so
     // use the click as a one-shot fallback only when no draft exists yet.
+    if (suppressTextClickRef.current) {
+      suppressTextClickRef.current = false;
+      return;
+    }
     placeTextFromMouseActivation(event);
   };
 
   const handlePointerCancel = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (pointerIdRef.current === event.pointerId) cancelGesture();
+    if (pointerIdRef.current === event.pointerId) {
+      if (textDragRef.current?.pointerId === event.pointerId) suppressTextClickRef.current = true;
+      cancelGesture();
+    }
     pointerSequenceRef.current = false;
     suppressMouseUpRef.current = true;
   };
 
   const handleLostPointerCapture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (pointerIdRef.current === event.pointerId) cancelGesture();
+    if (pointerIdRef.current === event.pointerId) {
+      if (textDragRef.current?.pointerId === event.pointerId) suppressTextClickRef.current = true;
+      cancelGesture();
+    }
     pointerSequenceRef.current = false;
     suppressMouseUpRef.current = true;
   };
@@ -841,6 +916,14 @@ export function OverlaySurface({
   };
 
   const draftPosition = textDraft ? viewportPoint(textDraft.anchor, viewportSize(viewport).width, viewportSize(viewport).height, viewport) : null;
+  const draftEditorStyle = textDraft ? (() => {
+    const lines = textDraft.value.split("\n");
+    const longestLine = Math.max(1, ...lines.map((line) => measureTextForHitTest(line, textDraft.style)));
+    return {
+      width: `${Math.min(360, Math.max(80, Math.ceil(longestLine + 18)))}px`,
+      minHeight: `${Math.max(28, Math.ceil(lines.length * textDraft.style.textSize * TEXT_LINE_HEIGHT + 8))}px`,
+    };
+  })() : undefined;
 
   return (
     <>
@@ -878,7 +961,7 @@ export function OverlaySurface({
           onKeyUp={handleTextKeyUp}
           onBlur={handleTextBlur}
           rows={1}
-          style={{ left: draftPosition.x, top: draftPosition.y, color: textDraft.style.color, fontSize: textDraft.style.textSize }}
+          style={{ left: draftPosition.x, top: draftPosition.y, color: textDraft.style.color, fontSize: textDraft.style.textSize, ...draftEditorStyle }}
         />
       ) : null}
     </>

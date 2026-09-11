@@ -73,6 +73,14 @@ export default function App() {
       });
   };
 
+  const moveTextItem = (id: string, anchor: { x: number; y: number }) => {
+    void invoke<SceneSnapshot>("move_text_scene_item", { id, anchor })
+      .then((snapshot) => {
+        setSceneId(snapshot.sceneId);
+        setScene(snapshot.items);
+      });
+  };
+
   const placeTextDraft = (anchor: { x: number; y: number }, style: AnnotationStyle) => {
     setAnnotationState((state) => ({
       ...state,
@@ -132,6 +140,7 @@ export default function App() {
             onUpdateTextDraft={updateTextDraft}
             onCancelTextDraft={cancelTextDraft}
             onCommitSceneItem={commitSceneItem}
+            onMoveTextItem={moveTextItem}
             onEraseSceneItem={eraseSceneItem}
           />
           {mode === "VisibleInteractive" ? (

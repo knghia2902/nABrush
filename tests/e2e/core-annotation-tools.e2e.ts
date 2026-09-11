@@ -326,6 +326,14 @@ describe("Phase 3 core annotation tools", () => {
       const editor = await browser.$('[data-text-draft="true"]');
       await editor.waitForDisplayed({ timeout: 5_000 });
       await expect(editor).toBeFocused();
+      const compactRect = await browser.execute(() => {
+        const draft = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+        if (!draft) throw new Error("Text draft editor is unavailable");
+        const rect = draft.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+      expect(compactRect.width).toBeLessThan(200);
+      expect(compactRect.height).toBeLessThan(60);
       await editor.addValue("native text");
       await expect(editor).toHaveValue("native text");
       await browser.keys(["Shift", "Enter"]);
@@ -340,6 +348,47 @@ describe("Phase 3 core annotation tools", () => {
       const native = await nativeSceneSnapshot();
       const item = native.items.find((candidate) => candidate.id === after.ids.at(-1));
       expect(item).toMatchObject({ kind: "text", tool: "text", text: "native text\nsecond line" });
+      if (!item || item.kind !== "text") throw new Error("Committed text item is unavailable for move test");
+
+      const moveEnd = await canvasPoint(0.7, 0.42);
+      await ensureGeneratedOverlayInteractionTarget("move committed text");
+      await browser.performActions([{
+        type: "pointer",
+        id: "phase3-text-move",
+        parameters: { pointerType: "mouse" },
+        actions: [
+          { type: "pointerMove", duration: 0, x: anchor.x, y: anchor.y },
+          { type: "pointerDown", button: 0 },
+          { type: "pointerMove", duration: 250, x: moveEnd.x, y: moveEnd.y },
+        ],
+      }]);
+      await browser.waitUntil(async () => {
+        const state = await canvasGestureState();
+        const snapshot = await sceneSnapshot();
+        return state.phase === "previewing" && state.transient === "true" && snapshot.count === after.count;
+      }, {
+        timeout: 15_000,
+        timeoutMsg: `[${hostLabel()}] Committed text did not preview while dragging`,
+      });
+      await ensureGeneratedOverlayInteractionTarget("commit moved text");
+      await browser.performActions([{
+        type: "pointer",
+        id: "phase3-text-move",
+        parameters: { pointerType: "mouse" },
+        actions: [
+          { type: "pointerMove", duration: 0, x: moveEnd.x, y: moveEnd.y },
+          { type: "pointerUp", button: 0 },
+        ],
+      }]);
+      await browser.waitUntil(async () => {
+        const moved = await nativeSceneSnapshot();
+        const movedItem = moved.items.find((candidate) => candidate.id === item.id);
+        return movedItem?.kind === "text"
+          && (movedItem.anchor.x !== item.anchor.x || movedItem.anchor.y !== item.anchor.y);
+      }, {
+        timeout: 15_000,
+        timeoutMsg: `[${hostLabel()}] Moved text anchor was not persisted natively`,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`${message}; text diagnostics=${JSON.stringify(await inputDiagnostics(anchor))}`);

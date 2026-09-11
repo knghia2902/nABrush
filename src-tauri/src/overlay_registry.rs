@@ -234,6 +234,26 @@ impl SceneStore {
         Ok(self.snapshot())
     }
 
+    pub fn move_text_scene_item(
+        &mut self,
+        id: &str,
+        anchor: ScenePoint,
+    ) -> Result<SceneSnapshot, RegistryError> {
+        validate_id(id)?;
+        validate_point(&anchor, "anchor")?;
+        if let Some(item) = self.items.iter_mut().find(|item| item.id() == id) {
+            match item {
+                SceneItem::Text { anchor: current, .. } => *current = anchor,
+                SceneItem::Stroke { .. } | SceneItem::Shape { .. } => {
+                    return Err(RegistryError::InvalidSceneItem(
+                        "only text items can be moved".into(),
+                    ));
+                }
+            }
+        }
+        Ok(self.snapshot())
+    }
+
     pub fn erase_scene_item(&mut self, id: &str) -> Result<SceneSnapshot, RegistryError> {
         validate_id(id)?;
         if let Some(position) = self.items.iter().position(|item| item.id() == id) {
@@ -1168,5 +1188,37 @@ mod tests {
         assert_eq!(no_op, erased);
         assert!(scene.erase_scene_item("").is_err());
         assert!(scene.erase_scene_item(&"x".repeat(257)).is_err());
+    }
+
+    #[test]
+    fn scene_store_moves_only_text_and_preserves_other_items() {
+        let mut scene = SceneStore::with_id("stable-scene").unwrap();
+        let style = serde_json::json!({"color":"#334155","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#334155","fillOpacity":0.18,"textSize":24.0});
+        scene
+            .commit_scene_item(serde_json::json!({
+                "id":"stroke-1","kind":"stroke","tool":"pen",
+                "points":[{"x":10.0,"y":10.0},{"x":50.0,"y":10.0}],"style":style.clone()
+            }))
+            .unwrap();
+        scene
+            .commit_scene_item(serde_json::json!({
+                "id":"text-1","kind":"text","tool":"text",
+                "anchor":{"x":100.0,"y":100.0},"text":"label","style":style
+            }))
+            .unwrap();
+
+        let moved = scene
+            .move_text_scene_item("text-1", ScenePoint { x: 240.0, y: 180.0 })
+            .unwrap();
+        assert!(matches!(moved.items[0], SceneItem::Stroke { ref id, .. } if id == "stroke-1"));
+        assert!(matches!(moved.items[1], SceneItem::Text { ref id, ref anchor, .. } if id == "text-1" && anchor == &ScenePoint { x: 240.0, y: 180.0 }));
+        assert!(scene
+            .move_text_scene_item("stroke-1", ScenePoint { x: 1.0, y: 1.0 })
+            .is_err());
+        assert_eq!(scene.move_text_scene_item("missing", ScenePoint { x: 1.0, y: 1.0 }).unwrap(), moved);
+        assert!(scene
+            .move_text_scene_item("text-1", ScenePoint { x: f64::NAN, y: 1.0 })
+            .is_err());
+        assert_eq!(scene.snapshot(), moved);
     }
 }

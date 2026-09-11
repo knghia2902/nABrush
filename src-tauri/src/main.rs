@@ -14,7 +14,7 @@ mod tray;
 
 use controller::AppController;
 use display::{DisplayDescriptor, DisplayId, DisplayOrientation, DisplayPoint, DisplaySize, DisplaySnapshot};
-use overlay_registry::{OverlayRegistry, SceneSnapshot, SceneStore};
+use overlay_registry::{OverlayRegistry, ScenePoint, SceneSnapshot, SceneStore};
 use serde_json::Value;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -273,11 +273,34 @@ fn erase_scene_item(
     Ok(snapshot)
 }
 
+#[tauri::command]
+fn move_text_scene_item(
+    id: String,
+    anchor: ScenePoint,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SceneStore>>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<SceneSnapshot, String> {
+    let snapshot = state
+        .lock()
+        .expect("scene mutex poisoned")
+        .move_text_scene_item(&id, anchor)
+        .map_err(|error| error.to_string())?;
+    registry
+        .lock()
+        .expect("registry mutex poisoned")
+        .broadcast_scene(&app, &snapshot)
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot)
+}
+
 fn main() {
     let builder = tauri::Builder::default();
 
     #[cfg(debug_assertions)]
-    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+    let builder = builder
+        .plugin(tauri_plugin_wdio::init())
+        .plugin(tauri_plugin_wdio_webdriver::init());
 
     builder
         .invoke_handler(tauri::generate_handler![
@@ -294,6 +317,7 @@ fn main() {
             get_overlay_bootstrap_state,
             commit_scene_item,
             erase_scene_item,
+            move_text_scene_item,
             test_dispatch_action,
             test_show_settings,
             test_request_close_settings,
