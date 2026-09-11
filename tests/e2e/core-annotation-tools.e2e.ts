@@ -1,6 +1,8 @@
 import { TOOL_ORDER } from "../../src/types/platform-parity";
+import type { SceneSnapshot } from "../../src/types/overlay";
 
 type Point = { x: number; y: number };
+type CanvasGestureState = { phase: string; transient: string };
 
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   return browser.execute(async (name, payload) => {
@@ -36,6 +38,17 @@ async function sceneSnapshot() {
   });
 }
 
+async function nativeSceneSnapshot() {
+  const snapshot = await invoke<SceneSnapshot>("get_scene_snapshot");
+  if (!snapshot || !Array.isArray(snapshot.items)) throw new Error(`[${hostLabel()}] Native scene snapshot is invalid`);
+  return snapshot;
+}
+
+function hostLabel() {
+  const host = process.platform === "darwin" ? "macOS" : process.platform === "win32" ? "Windows" : process.platform;
+  return `${host}/${String(browser.capabilities?.browserName ?? "embedded-tauri")}`;
+}
+
 async function canvasRect() {
   return browser.execute(() => {
     const canvas = document.querySelector<HTMLCanvasElement>('[data-overlay-canvas="true"]');
@@ -51,6 +64,17 @@ async function canvasPoint(x: number, y: number): Promise<Point> {
     x: Math.round(rect.left + rect.width * x),
     y: Math.round(rect.top + rect.height * y),
   };
+}
+
+async function canvasGestureState(): Promise<CanvasGestureState> {
+  return browser.execute(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-overlay-canvas="true"]');
+    if (!canvas) throw new Error("Overlay canvas is unavailable");
+    return {
+      phase: canvas.getAttribute("data-gesture-phase") ?? "missing",
+      transient: canvas.getAttribute("data-transient-active") ?? "missing",
+    };
+  });
 }
 
 async function pointerMove(point: Point) {
@@ -92,28 +116,83 @@ async function clickCanvas(point: Point) {
 }
 
 async function dragCanvas(start: Point, end: Point, expectedCount: number) {
-  const canvas = await browser.$('[data-overlay-canvas="true"]');
-  await browser.execute((expected) => {
-    const key = "__phase3SceneCounts";
-    const target = window as unknown as Record<string, unknown>;
-    target[key] = [];
-    target.__phase3SceneCountsTimer = window.setInterval(() => {
-      const main = document.querySelector("main");
-      (target[key] as number[]).push(Number(main?.getAttribute("data-scene-count") ?? "0"));
-    }, 10);
-    void expected;
-  }, expectedCount);
-  await canvas.dragAndDrop({ x: end.x, y: end.y }, { duration: 250 });
-  const counts = await browser.execute(() => {
-    const target = window as unknown as Record<string, unknown>;
-    window.clearInterval(target.__phase3SceneCountsTimer as number);
-    return (target.__phase3SceneCounts as number[]) ?? [];
-  });
-  expect(counts.length).toBeGreaterThan(0);
-  expect(counts.every((count) => count === expectedCount)).toBe(true);
-  await browser.waitUntil(async () => (await sceneSnapshot()).count === expectedCount + 1, {
+  const before = await sceneSnapshot();
+  expect(before.count).toBe(expectedCount);
+  try {
+    await browser.performActions([{
+      type: "pointer",
+      id: "phase3-draw-pointer",
+      parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: start.x, y: start.y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerMove", duration: 250, x: end.x, y: end.y },
+      ],
+    }]);
+    await browser.waitUntil(async () => {
+      const state = await canvasGestureState();
+      const snapshot = await sceneSnapshot();
+      return state.phase === "previewing" && state.transient === "true" && snapshot.count === expectedCount;
+    }, {
+      timeout: 15_000,
+      timeoutMsg: `[${hostLabel()}] Realtime preview was not visible before pointer-up`,
+    });
+    expect(await sceneSnapshot()).toEqual(before);
+    expect(await canvasGestureState()).toEqual({ phase: "previewing", transient: "true" });
+
+    await browser.performActions([{
+      type: "pointer",
+      id: "phase3-draw-pointer",
+      parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: end.x, y: end.y },
+        { type: "pointerUp", button: 0 },
+      ],
+    }]);
+    await browser.waitUntil(async () => (await sceneSnapshot()).count === expectedCount + 1, {
+      timeout: 15_000,
+      timeoutMsg: `[${hostLabel()}] Pointer-up did not commit exactly one retained scene item`,
+    });
+    const after = await sceneSnapshot();
+    const addedIds = after.ids.filter((id) => !before.ids.includes(id));
+    expect(addedIds).toHaveLength(1);
+    expect(after.count).toBe(expectedCount + 1);
+    await browser.waitUntil(async () => (await canvasGestureState()).transient === "false", {
+      timeout: 15_000,
+      timeoutMsg: `[${hostLabel()}] Transient gesture did not reset after pointer-up`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`[${hostLabel()}] Pointer path failed from ${JSON.stringify(start)} to ${JSON.stringify(end)}: ${message}`);
+  } finally {
+    try {
+      await browser.releaseActions();
+    } catch {
+      // Cleanup must not mask the lifecycle assertion that failed above.
+    }
+  }
+}
+
+async function openPropertiesFor(tool: (typeof TOOL_ORDER)[number]) {
+  const popover = await browser.$('[data-property-popover="true"]');
+  if (!(await popover.isExisting())) await browser.$('[aria-label="Tool properties"]').click();
+  await browser.waitUntil(async () => (await browser.$('[data-property-popover="true"]')).getAttribute("data-active-tool") === tool, {
     timeout: 15_000,
-    timeoutMsg: "Pointer-up did not commit exactly one retained scene item",
+    timeoutMsg: `[${hostLabel()}] Property popover did not select ${tool}`,
+  });
+}
+
+async function closeProperties() {
+  if (await browser.$('[data-property-popover="true"]').isExisting()) await browser.$('[aria-label="Tool properties"]').click();
+}
+
+async function setStyleControl(controlName: string, value: string) {
+  const control = await browser.$(`[data-style-control="${controlName}"]`);
+  await control.waitForDisplayed();
+  await control.setValue(value);
+  await browser.waitUntil(async () => String(await control.getValue()) === value, {
+    timeout: 15_000,
+    timeoutMsg: `[${hostLabel()}] ${controlName} did not retain ${value}`,
   });
 }
 
@@ -163,18 +242,16 @@ describe("Phase 3 core annotation tools", () => {
     await browser.$('[aria-label="Tool properties"]').click();
   });
 
-  it("commits six realtime drawing tools, text keyboard lifecycle, and one topmost erase", async () => {
+  it("commits realtime drawing tools, distinct shape styles, text lifecycle, and one topmost erase", async () => {
     const baseline = await sceneSnapshot();
     expect(baseline.id).toBe("webview-scene");
     expect(baseline.ids).toHaveLength(baseline.count);
 
-    const gestures: Array<{ tool: (typeof TOOL_ORDER)[number]; start: Point; end: Point }> = [
+    const gestures: Array<{ tool: "pen" | "highlighter" | "line" | "arrow"; start: Point; end: Point }> = [
       { tool: "pen", start: await canvasPoint(0.12, 0.16), end: await canvasPoint(0.22, 0.2) },
       { tool: "highlighter", start: await canvasPoint(0.3, 0.16), end: await canvasPoint(0.4, 0.2) },
       { tool: "line", start: await canvasPoint(0.48, 0.16), end: await canvasPoint(0.58, 0.2) },
       { tool: "arrow", start: await canvasPoint(0.66, 0.16), end: await canvasPoint(0.76, 0.2) },
-      { tool: "rectangle", start: await canvasPoint(0.12, 0.38), end: await canvasPoint(0.24, 0.5) },
-      { tool: "ellipse", start: await canvasPoint(0.34, 0.38), end: await canvasPoint(0.46, 0.5) },
     ];
 
     let expectedCount = baseline.count;
@@ -186,6 +263,44 @@ describe("Phase 3 core annotation tools", () => {
       expect(snapshot.id).toBe(baseline.id);
       expect(snapshot.ids).toHaveLength(expectedCount);
     }
+
+    await selectTool("rectangle");
+    await openPropertiesFor("rectangle");
+    await setStyleControl("fill", "solid");
+    await setStyleControl("fillColor", "#16a34a");
+    await setStyleControl("fillOpacity", "0.42");
+    const rectangleStart = await canvasPoint(0.12, 0.38);
+    const rectangleEnd = await canvasPoint(0.24, 0.5);
+    await dragCanvas(rectangleStart, rectangleEnd, expectedCount);
+    expectedCount += 1;
+    const rectangleView = await sceneSnapshot();
+    const rectangleNative = await nativeSceneSnapshot();
+    expect(rectangleNative.sceneId).toBe(baseline.id);
+    const rectangleItem = rectangleNative.items.find((item) => item.id === rectangleView.ids.at(-1));
+    expect(rectangleItem).toMatchObject({
+      tool: "rectangle",
+      style: { fill: "solid", fillColor: "#16a34a", fillOpacity: 0.42 },
+    });
+
+    await selectTool("ellipse");
+    await openPropertiesFor("ellipse");
+    await setStyleControl("fill", "solid");
+    await setStyleControl("fillColor", "#7c3aed");
+    await setStyleControl("fillOpacity", "0.67");
+    const ellipseStart = await canvasPoint(0.34, 0.38);
+    const ellipseEnd = await canvasPoint(0.46, 0.5);
+    await dragCanvas(ellipseStart, ellipseEnd, expectedCount);
+    expectedCount += 1;
+    const ellipseView = await sceneSnapshot();
+    const ellipseNative = await nativeSceneSnapshot();
+    const ellipseItem = ellipseNative.items.find((item) => item.id === ellipseView.ids.at(-1));
+    expect(ellipseItem).toMatchObject({
+      tool: "ellipse",
+      style: { fill: "solid", fillColor: "#7c3aed", fillOpacity: 0.67 },
+    });
+    expect(ellipseItem?.style.fillColor).not.toBe(rectangleItem?.style.fillColor);
+    expect(ellipseItem?.style.fillOpacity).not.toBe(rectangleItem?.style.fillOpacity);
+    await closeProperties();
 
     const textAnchor = await canvasPoint(0.58, 0.38);
     await selectTool("text");
