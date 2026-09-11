@@ -130,7 +130,7 @@ Plans:
   4. User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations, with configurable color and text size.
   5. User can use an eraser to remove one selected annotation without affecting unrelated annotations.
 
-**Plans:** 8/8 plans executed; 4 gap-closure plans pending
+**Plans:** 8/8 plans executed; 3 gap-closure plans pending
 Plans:
 **Wave 1**
 
@@ -163,6 +163,18 @@ Plans:
 **Wave 8** *(blocked on Wave 7 completion)*
 
 - [x] 03-08-PLAN.md — Gap closure: final multi-source validation audit and evidence-consistent sign-off
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 03-09-PLAN.md — Gap closure: macOS WDIO bridge readiness and generated-overlay native input
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 03-10-PLAN.md — Gap closure: Windows phase3-tools workflow and fail-closed evidence contract
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
+- [ ] 03-11-PLAN.md — Gap closure: retained Windows evidence and validation/UAT consistency audit
 
 ### Phase 4: Editing & Ink Lifecycle
 
