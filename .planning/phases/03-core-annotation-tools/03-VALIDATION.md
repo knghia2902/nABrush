@@ -139,39 +139,45 @@ without host-observed evidence.
 
 ## Multi-source coverage audit
 
+> `COVERED (traceability)` means the source item is assigned to a concrete Phase 3
+> plan; it does not certify native, manual, or cross-platform behavior. Those
+> outcome states remain in the requirements, platform, manual, and sign-off
+> sections above.
+
 | Source | ID | Feature/decision | Plan | Status |
 |--------|----|------------------|------|--------|
-| GOAL | — | Phase 3 core annotation tools on the shared overlay | 03-01-01 through 03-04-02 | COVERED |
-| REQ | DRAW-01 | Freehand strokes with configurable color, opacity and width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
-| REQ | DRAW-02 | Semi-transparent highlighter with configurable color, opacity and width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
-| REQ | DRAW-03 | Straight lines and arrows with configurable style | 03-02-01, 03-04-01 | COVERED |
-| REQ | DRAW-04 | Rectangles and ellipses with independent fill/opacity style | 03-02-02, 03-04-01 | COVERED |
-| REQ | DRAW-05 | Pre-commit text create/edit/commit/cancel with color and size | 03-03-01, 03-04-01 | COVERED |
-| REQ | DRAW-06 | Eraser removes one annotation without unrelated changes | 03-03-02, 03-04-01 | COVERED |
-| RESEARCH | R-01 | Typed discriminated retained scene and native validation | 03-01-01, 03-02-01, 03-02-02, 03-03-02 | COVERED |
-| RESEARCH | R-02 | Pointer gesture transient preview then one valid commit | 03-01-01, 03-02-01, 03-02-02, 03-04-01 | COVERED |
-| RESEARCH | R-03 | Canonical coordinates, rotation, negative origin and per-display DPR | 03-01-01, 03-02-01, 03-02-02, 03-04-01 | COVERED |
-| RESEARCH | R-04 | Whole SceneSnapshot invoke/listen/broadcast synchronization | 03-01-01, 03-03-02, 03-04-01 | COVERED |
-| RESEARCH | R-05 | Scene-excluded text draft and Canvas measured text path | 03-03-01, 03-04-01 | COVERED |
-| RESEARCH | R-06 | Reverse topmost type-specific hit-test and one-item erase | 03-03-02, 03-04-01 | COVERED |
-| RESEARCH | R-07 | Malformed/oversized payload, duplicate ID and pointer interception mitigations | 03-01-01, 03-03-02, 03-04-01 | COVERED |
-| RESEARCH | R-08 | Existing Canvas/React/Rust/Vitest/WebdriverIO stack and no new dependency | 03-01-01 through 03-04-02 | COVERED |
-| CONTEXT | D-01 | Bottom drawing toolbar, UI chrome, scene-excluded | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D-02 | One-click persistent tool selection | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D-03 | Compact property popover for active tool | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D-04 | Per-tool in-session color/opacity/width/fill/text-size memory | 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D-05 | Thinner defaults with adjustable width | 03-01-01, 03-01-02, 03-04-01 | COVERED |
-| CONTEXT | D-06 | Realtime transient preview and valid-end commit | 03-01-01, 03-02-01, 03-02-02 | COVERED |
-| CONTEXT | D-07 | Short geometry drag ignored | 03-02-01, 03-02-02 | COVERED |
-| CONTEXT | D-08 | Solid compact triangular arrowhead | 03-02-01, 03-04-01 | COVERED |
-| CONTEXT | D-09 | Independent rectangle/ellipse fill style | 03-02-02, 03-01-02 | COVERED |
-| CONTEXT | D-10 | Esc/outside/mode/focus cancellation without scene mutation | 03-02-01, 03-03-01 | COVERED |
-| CONTEXT | D-11 | Click-to-place text and immediate input | 03-03-01, 03-04-01 | COVERED |
-| CONTEXT | D-12 | Enter commit, Shift+Enter newline, Esc cancel | 03-03-01, 03-04-01 | COVERED |
-| CONTEXT | D-13 | Draft-only editing; committed text stays unchanged | 03-03-01 | COVERED |
-| CONTEXT | D-14 | Click-only eraser removes one item | 03-03-02, 03-04-01 | COVERED |
-| CONTEXT | D-15 | Latest/topmost overlap wins | 03-03-01, 03-03-02 | COVERED |
-| CONTEXT | D-16 | Type-specific padded hit-test | 03-03-01, 03-03-02 | COVERED |
-| CONTEXT | D-17 | Hover highlight before click mutation | 03-03-02, 03-04-01 | COVERED |
+| GOAL | — | Canonical Phase 3 presenter story: create basic annotations quickly and smoothly on the shared overlay using pointer or keyboard controls without leaving the active application | 03-07-01, 03-08-01 | COVERED (traceability) |
+| REQ | DRAW-01 | Freehand strokes with configurable color, opacity and width | 03-01-01, 03-01-02, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| REQ | DRAW-02 | Semi-transparent highlighter with configurable color, opacity and width | 03-01-01, 03-01-02, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| REQ | DRAW-03 | Straight lines and arrows with configurable style | 03-02-01, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| REQ | DRAW-04 | Rectangles and ellipses with independent fill/opacity style | 03-02-02, 03-04-01, 03-05-01, 03-05-02, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| REQ | DRAW-05 | Pre-commit text create/edit/commit/cancel with color and size | 03-03-01, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| REQ | DRAW-06 | Eraser removes one annotation without unrelated changes | 03-03-02, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-01 | Typed discriminated retained scene and native validation | 03-01-01, 03-02-01, 03-02-02, 03-03-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-02 | Pointer gesture transient preview then one valid commit | 03-01-01, 03-02-01, 03-02-02, 03-04-01, 03-06-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-03 | Canonical coordinates, rotation, negative origin and per-display DPR | 03-01-01, 03-02-01, 03-02-02, 03-04-01, 03-06-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-04 | Whole SceneSnapshot invoke/listen/broadcast synchronization | 03-01-01, 03-03-02, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-05 | Scene-excluded text draft and Canvas measured text path | 03-03-01, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-06 | Reverse topmost type-specific hit-test and one-item erase | 03-03-02, 03-04-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-07 | Malformed/oversized payload, duplicate ID and pointer interception mitigations | 03-01-01, 03-03-02, 03-04-01, 03-05-01, 03-06-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-08 | Existing Canvas/React/Rust/Vitest/WebdriverIO stack and no new dependency | 03-01-01 through 03-04-02, 03-05-01, 03-05-02, 03-06-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| RESEARCH | R-09 | macOS WebKit pointer limitation and unavailable Windows host evidence | 03-06-01, 03-06-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-01 | Bottom drawing toolbar, UI chrome, scene-excluded | 03-01-02, 03-04-01, 03-05-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-02 | One-click persistent tool selection | 03-01-02, 03-04-01, 03-05-01, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-03 | Compact property popover for active tool | 03-01-02, 03-04-01, 03-05-01, 03-05-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-04 | Per-tool in-session color/opacity/width/fill/text-size memory | 03-01-02, 03-04-01, 03-05-01, 03-05-02, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-05 | Thinner defaults with adjustable width | 03-01-01, 03-01-02, 03-04-01, 03-05-01, 03-05-02, 03-07-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-06 | Realtime transient preview and valid-end commit | 03-01-01, 03-02-01, 03-02-02, 03-06-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-07 | Short geometry drag ignored | 03-02-01, 03-02-02, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-08 | Solid compact triangular arrowhead | 03-02-01, 03-04-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-09 | Independent rectangle/ellipse fill style | 03-02-02, 03-05-01, 03-05-02, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-10 | Esc/outside/mode/focus cancellation without scene mutation | 03-02-01, 03-02-02, 03-03-01, 03-06-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-11 | Click-to-place text and immediate input | 03-03-01, 03-04-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-12 | Enter commit, Shift+Enter newline, Esc cancel | 03-03-01, 03-04-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-13 | Draft-only editing; committed text stays unchanged | 03-03-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-14 | Click-only eraser removes one item | 03-03-02, 03-04-01, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-15 | Latest/topmost overlap wins | 03-03-01, 03-03-02, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-16 | Type-specific padded hit-test | 03-03-01, 03-03-02, 03-06-02, 03-08-01 | COVERED (traceability) |
+| CONTEXT | D-17 | Hover highlight before click mutation | 03-03-02, 03-04-01, 03-06-02, 03-08-01 | COVERED (traceability) |
 
 **Approval:** pending
