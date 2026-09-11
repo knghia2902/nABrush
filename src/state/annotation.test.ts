@@ -79,6 +79,39 @@ describe("annotation tool state", () => {
     expect(initial.stylesByTool.highlighter.opacity).toBe(0.35);
   });
 
+  it("keeps rectangle and ellipse fill patches independent per tool", () => {
+    const initial = createInitialAnnotationState();
+    const rectangle = updateToolStyle(initial, "rectangle", {
+      fill: "solid",
+      fillColor: "#16a34a",
+      fillOpacity: 0.42,
+    });
+    const ellipse = updateToolStyle(rectangle, "ellipse", {
+      fill: "solid",
+      fillColor: "#7c3aed",
+      fillOpacity: 0.67,
+    });
+
+    expect(initial.stylesByTool.rectangle).not.toBe(initial.stylesByTool.ellipse);
+    expect(rectangle).not.toBe(initial);
+    expect(rectangle.stylesByTool).not.toBe(initial.stylesByTool);
+    expect(rectangle.stylesByTool.rectangle).not.toBe(initial.stylesByTool.rectangle);
+    expect(rectangle.stylesByTool.rectangle).toMatchObject({ fill: "solid", fillColor: "#16a34a", fillOpacity: 0.42 });
+    expect(rectangle.stylesByTool.ellipse).toBe(initial.stylesByTool.ellipse);
+    expect(rectangle.stylesByTool.pen).toBe(initial.stylesByTool.pen);
+
+    expect(ellipse).not.toBe(rectangle);
+    expect(ellipse.stylesByTool).not.toBe(rectangle.stylesByTool);
+    expect(ellipse.stylesByTool.ellipse).not.toBe(rectangle.stylesByTool.ellipse);
+    expect(ellipse.stylesByTool.ellipse).toMatchObject({ fill: "solid", fillColor: "#7c3aed", fillOpacity: 0.67 });
+    expect(ellipse.stylesByTool.rectangle).toBe(rectangle.stylesByTool.rectangle);
+    expect(ellipse.stylesByTool.rectangle).toMatchObject({ fillColor: "#16a34a", fillOpacity: 0.42 });
+    expect(ellipse.stylesByTool.pen).toBe(initial.stylesByTool.pen);
+
+    expect(initial.stylesByTool.rectangle).toMatchObject({ fill: "none", fillColor: "#334155", fillOpacity: 0.18 });
+    expect(initial.stylesByTool.ellipse).toMatchObject({ fill: "none", fillColor: "#334155", fillOpacity: 0.18 });
+  });
+
   it("keeps geometry threshold and bound normalization pure", () => {
     expect(MIN_GEOMETRY_DRAG).toBe(4);
     expect(isGeometryDragValid({ x: 0, y: 0 }, { x: 3.9, y: 0 })).toBe(false);
