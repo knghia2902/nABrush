@@ -24,12 +24,12 @@ Requirements for the initial cross-platform release. Each requirement is user-ce
 
 ### Drawing Tools
 
-- [ ] **DRAW-01**: User can draw freehand strokes with configurable color, opacity, and width.
-- [ ] **DRAW-02**: User can draw a semi-transparent highlighter stroke with configurable color, opacity, and width.
-- [ ] **DRAW-03**: User can draw straight lines and arrows with configurable color, opacity, and width.
+- [x] **DRAW-01**: User can draw freehand strokes with configurable color, opacity, and width.
+- [x] **DRAW-02**: User can draw a semi-transparent highlighter stroke with configurable color, opacity, and width.
+- [x] **DRAW-03**: User can draw straight lines and arrows with configurable color, opacity, and width.
 - [x] **DRAW-04**: User can draw rectangles and ellipses with configurable stroke and fill/opacity settings.
-- [ ] **DRAW-05**: User can create, edit, commit, or cancel a text annotation with configurable color and text size.
-- [ ] **DRAW-06**: User can erase an annotation using an eraser tool without affecting unrelated annotations.
+- [x] **DRAW-05**: User can create, edit, commit, or cancel a text annotation with configurable color and text size.
+- [x] **DRAW-06**: User can erase an annotation using an eraser tool without affecting unrelated annotations.
 
 ### Editing and Ink Lifecycle
 
@@ -112,12 +112,12 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DISP-02 | Phase 2 | Pending |
 | DISP-03 | Phase 2 | Pending |
 | DISP-04 | Phase 2 | Pending |
-| DRAW-01 | Phase 3 | Pending |
-| DRAW-02 | Phase 3 | Pending |
-| DRAW-03 | Phase 3 | Pending |
+| DRAW-01 | Phase 3 | Complete |
+| DRAW-02 | Phase 3 | Complete |
+| DRAW-03 | Phase 3 | Complete |
 | DRAW-04 | Phase 3 | Complete |
-| DRAW-05 | Phase 3 | Pending |
-| DRAW-06 | Phase 3 | Pending |
+| DRAW-05 | Phase 3 | Complete |
+| DRAW-06 | Phase 3 | Complete |
 | EDIT-01 | Phase 4 | Pending |
 | EDIT-02 | Phase 4 | Pending |
 | EDIT-03 | Phase 4 | Pending |
