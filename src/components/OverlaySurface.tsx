@@ -35,6 +35,22 @@ import {
 
 export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
+export type GesturePhase = "idle" | "pressed" | "previewing";
+export type GestureTerminalAction = "ignore" | "cancel" | "commit";
+
+export function gesturePhaseFor(pointerId: number | null, transientSceneItem: SceneItem | null): GesturePhase {
+  if (pointerId === null) return "idle";
+  return transientSceneItem ? "previewing" : "pressed";
+}
+
+export function gestureTerminalAction(
+  activePointerId: number | null,
+  eventPointerId: number,
+  outside: boolean,
+): GestureTerminalAction {
+  if (activePointerId === null || activePointerId !== eventPointerId) return "ignore";
+  return outside ? "cancel" : "commit";
+}
 
 function isShapeTool(tool: AnnotationTool): tool is ShapeTool {
   return tool === "line" || tool === "arrow" || tool === "rectangle" || tool === "ellipse";
@@ -497,6 +513,7 @@ export function OverlaySurface({
   const gestureToolRef = useRef<AnnotationTool>(activeTool);
   const nextItemIdRef = useRef(0);
   const [transientSceneItem, setTransientSceneItem] = useState<SceneItem | null>(null);
+  const [gesturePhase, setGesturePhase] = useState<GesturePhase>("idle");
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
 
   const measureTextForHitTest = useCallback((line: string, style: AnnotationStyle): number => {
@@ -539,11 +556,12 @@ export function OverlaySurface({
   const cancelGesture = useCallback(() => {
     const canvas = canvasRef.current;
     const pointerId = pointerIdRef.current;
-    if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
     pointerIdRef.current = null;
     samplesRef.current = [];
     setTransientSceneItem(null);
+    setGesturePhase("idle");
     setHoveredItemId(null);
+    if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
   }, []);
 
   useEffect(() => {
@@ -594,12 +612,14 @@ export function OverlaySurface({
       return;
     }
     if (!isStrokeTool(activeTool) && !isShapeTool(activeTool)) return;
+    if (pointerIdRef.current !== null) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
     gestureStyleRef.current = { ...toolStyle };
     gestureToolRef.current = activeTool;
     setTransientSceneItem(null);
+    setGesturePhase("pressed");
   };
 
   const moveGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -613,23 +633,32 @@ export function OverlaySurface({
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
     const rect = event.currentTarget.getBoundingClientRect();
     if (gestureToolRef.current === "pen" || gestureToolRef.current === "highlighter") {
-      setTransientSceneItem(transientSceneItemForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current));
+      const transient = transientSceneItemForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current);
+      setTransientSceneItem(transient);
+      setGesturePhase(gesturePhaseFor(pointerIdRef.current, transient));
     } else if (isShapeTool(gestureToolRef.current)) {
-      setTransientSceneItem(transientGeometryForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current));
+      const transient = transientGeometryForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current);
+      setTransientSceneItem(transient);
+      setGesturePhase(gesturePhaseFor(pointerIdRef.current, transient));
     }
   };
 
   const endGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (pointerIdRef.current !== event.pointerId) return;
     const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+    const terminalAction = gestureTerminalAction(pointerIdRef.current, event.pointerId, outside);
+    if (terminalAction === "ignore") return;
+    if (terminalAction === "cancel") {
+      cancelGesture();
+      return;
+    }
+    samplesRef.current = [...samplesRef.current, { clientX: event.clientX, clientY: event.clientY }];
     const samples = samplesRef.current;
     const style = gestureStyleRef.current;
     const tool = gestureToolRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
     const points = normalizePointerPath(samples, rect, viewport);
     cancelGesture();
-    if (outside) return;
     if (isShapeTool(tool)) {
       const geometryItem = transientGeometryForGesture(samples, rect, viewport, tool, style);
       if (!geometryItem) return;
@@ -646,6 +675,14 @@ export function OverlaySurface({
     if (points.length < 2) return;
     nextItemIdRef.current += 1;
     onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool));
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (pointerIdRef.current === event.pointerId) cancelGesture();
+  };
+
+  const handleLostPointerCapture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (pointerIdRef.current === event.pointerId) cancelGesture();
   };
 
   const handleTextKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -690,8 +727,11 @@ export function OverlaySurface({
         onPointerDown={beginGesture}
         onPointerMove={moveGesture}
         onPointerUp={endGesture}
-        onPointerCancel={cancelGesture}
+        onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handleLostPointerCapture}
         onPointerLeave={() => { if (activeTool === "eraser") setHoveredItemId(null); }}
+        data-gesture-phase={gesturePhase}
+        data-transient-active={transientSceneItem ? "true" : "false"}
       />
       {textDraft && draftPosition && mode === "VisibleInteractive" ? (
         <textarea

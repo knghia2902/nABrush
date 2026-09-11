@@ -11,6 +11,8 @@ import {
   drawShapeGeometry,
   drawScene,
   drawTextItem,
+  gesturePhaseFor,
+  gestureTerminalAction,
   normalizePointerPath,
   transientGeometryForGesture,
   transientSceneItemForGesture,
@@ -106,6 +108,26 @@ describe("OverlaySurface scene helpers", () => {
 
     expect(transient).toEqual(createStroke("transient-stroke", [{ x: -1920, y: 180 }, { x: -1720, y: 80 }]));
     expect(scene).toEqual([]);
+  });
+
+  it("exposes pressed and previewing phases without mutating the retained scene", () => {
+    const scene: SceneItem[] = [];
+    const transient = transientStrokeForSamples(
+      [{ clientX: 10, clientY: 10 }, { clientX: 40, clientY: 40 }],
+      { left: 0, top: 0, width: 100, height: 100 },
+    );
+
+    expect(gesturePhaseFor(17, null)).toBe("pressed");
+    expect(gesturePhaseFor(17, transient)).toBe("previewing");
+    expect(scene).toEqual([]);
+  });
+
+  it("only permits a matching in-bounds terminal event to commit", () => {
+    expect(gestureTerminalAction(17, 17, false)).toBe("commit");
+    expect(gestureTerminalAction(17, 17, true)).toBe("cancel");
+    expect(gestureTerminalAction(17, 18, false)).toBe("ignore");
+    expect(gestureTerminalAction(null, 17, false)).toBe("ignore");
+    expect(gestureTerminalAction(null, 17, false)).toBe("ignore");
   });
 
   it("keeps pen and highlighter styles on the transient item snapshot", () => {
