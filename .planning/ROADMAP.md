@@ -113,7 +113,19 @@ Plans:
   4. User encounters the same shortcut concepts, tool order, mode feedback, and export semantics on macOS and Windows, with only platform-specific permission wording differing.
 
 **Research flags/spikes**: Test canonical top-left desktop coordinates, AppKit backing conversion, Windows Per-Monitor V2 DPI, negative origins, rotations, and topology event timing on real two-display hardware. Record borderless, native full-screen, Stage Manager/Spaces, protected, and exclusive-full-screen outcomes.
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+
+- [ ] 04-01-PLAN.md — Vanishing lifecycle tracer, native expiry, and all-tool lifecycle metadata
+- [ ] 04-02-PLAN.md — Canonical undo/redo, clear-all, text editing, and per-tool style invariants
+
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Vanishing lifecycle tracer, native expiry, and all-tool lifecycle metadata
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02-PLAN.md — Canonical undo/redo, clear-all, text editing, and per-tool style invariants
 
 ### Phase 3: Core Annotation Tools
 
