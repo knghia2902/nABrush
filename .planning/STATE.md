@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 current_phase: 03
-current_phase_name: core-annotation-tools
-current_plan: 1
+current_phase_name: Core Annotation Tools
+current_plan: 2
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-09-10T20:25:44.021Z"
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-09-11T01:27:37.900Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 03 execution started
-state_head: b66216735435d53612e33c1755f12a7d6c970d97
+state_head: cd4409b2b7f04b7cab9198a3dfb9de1e1e6c59df
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 24
-  completed_plans: 15
+  completed_plans: 20
   percent: 17
 ---
 
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-09-10)
 
 ## Current Position
 
-Current Plan: 1
+Current Plan: 2
 Total Plans in Phase: 8
 
-Phase: 03 (core-annotation-tools) — READY TO EXECUTE
-Plan: 1 of 4
+Phase: 03 (Core Annotation Tools) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
 Last activity: 2026-09-11 — Phase 03 execution started
 
@@ -63,6 +63,7 @@ Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P09 | 34 | 2 tasks | 4 files |
+| Phase 03 P05 | 3 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - Keep billing, accounts, cloud sync, collaboration, recording, AI/OCR and document whiteboard out of v1.
 - [Phase 1]: Route settings controls by the fixed Tauri settings label and keep the transparent overlay surface separate.
 - [Phase 1]: Keep test_show_settings debug-only with a release fail-closed error.
+- [Phase 03]: Keep stylesByTool as the only style store and route shape fill patches through the existing active-tool callback.
+- [Phase 03]: Use static server-rendered toolbar markup and pure immutable state tests for native integration selectors without adding dependencies.
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T17:01:35.832Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-core-annotation-tools/03-CONTEXT.md
+Last session: 2026-09-11T01:27:37.845Z
+Stopped at: Completed 03-05-PLAN.md
+Resume file: None

@@ -130,7 +130,7 @@ Plans:
   4. User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations, with configurable color and text size.
   5. User can use an eraser to remove one selected annotation without affecting unrelated annotations.
 
-**Plans:** 4/8 plans executed; 4 gap-closure plans pending
+**Plans:** 5/8 plans executed; 4 gap-closure plans pending
 Plans:
 **Wave 1**
 
@@ -150,7 +150,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 03-05-PLAN.md — Gap closure: shape fill controls and per-tool style assertions
+- [x] 03-05-PLAN.md — Gap closure: shape fill controls and per-tool style assertions
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -223,7 +223,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Native Overlay & Activation | 11/11 | Complete    | 2026-09-10 |
 | 2. Display Topology & Platform Parity | 0/TBD | Not started | - |
-| 3. Core Annotation Tools | 4/4 | In Progress|  |
+| 3. Core Annotation Tools | 5/8 | In Progress|  |
 | 4. Editing & Ink Lifecycle | 0/TBD | Not started | - |
 | 5. Capture & Export | 0/TBD | Not started | - |
 | 6. Signed Release Hardening | 0/TBD | Not started | - |
