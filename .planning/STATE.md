@@ -34,7 +34,7 @@ Total Plans in Phase: 8
 Phase: 03 (Core Annotation Tools) — EXECUTING
 Plan: 5 of 8
 Status: Ready to execute
-Last activity: 2026-09-11 — Phase 03 execution started
+Last activity: 2026-09-11 — Completed quick task 260911-e0s: Đưa toolbar bên trái, thiết kế lại theo cảm hứng từ mẫu và cho phép kéo di chuyển
 
 Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
 
@@ -101,6 +101,12 @@ None yet.
 - Phase 2: mixed-DPI, rotation, negative origins and topology events require a multi-monitor test matrix.
 - Phase 5: capture permissions, protected content, overlay exclusion and device loss require platform-specific validation.
 - Phase 6: direct signed/notarized distribution versus App Store packaging remains a release decision.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260911-e0s | Đưa toolbar bên trái, thiết kế lại theo cảm hứng từ mẫu và cho phép kéo di chuyển | 2026-09-11 | 2ddfa6e | [260911-e0s-a-toolbar-b-n-tr-i-thi-t-k-l-i-theo-c-m-](./quick/260911-e0s-a-toolbar-b-n-tr-i-thi-t-k-l-i-theo-c-m-/) |
 
 ## Deferred Items
 
