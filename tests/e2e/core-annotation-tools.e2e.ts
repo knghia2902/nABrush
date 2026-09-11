@@ -77,6 +77,22 @@ async function canvasGestureState(): Promise<CanvasGestureState> {
   });
 }
 
+async function toolbarRect() {
+  return browser.execute(() => {
+    const toolbar = document.querySelector<HTMLElement>('[data-annotation-toolbar="true"]');
+    if (!toolbar) throw new Error("Annotation toolbar is unavailable");
+    const rect = toolbar.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  });
+}
+
 async function pointerMove(point: Point) {
   await browser.performActions([{
     type: "pointer",
@@ -348,6 +364,56 @@ describe("Phase 3 core annotation tools", () => {
     expect(afterErase.ids).toHaveLength(beforeErase.count - 1);
   });
 
+  it("moves the scene-excluded toolbar without leaking into the retained scene", async () => {
+    await selectTool("pen");
+    const beforeScene = await sceneSnapshot();
+    const beforeToolbar = await toolbarRect();
+    const start = {
+      x: Math.round(beforeToolbar.left + beforeToolbar.width / 2),
+      y: Math.round(beforeToolbar.top + 18),
+    };
+    const end = {
+      x: Math.round(Math.min(beforeToolbar.viewportWidth - beforeToolbar.width - 20, beforeToolbar.left + 180)),
+      y: Math.round(Math.min(beforeToolbar.viewportHeight - beforeToolbar.height - 20, beforeToolbar.top + 80)),
+    };
+
+    await expect(await browser.$('[data-toolbar-drag-handle="true"]')).toHaveAttribute("data-scene-excluded", "true");
+    try {
+      await browser.performActions([{
+        type: "pointer",
+        id: "phase3-toolbar-pointer",
+        parameters: { pointerType: "mouse" },
+        actions: [
+          { type: "pointerMove", duration: 0, x: start.x, y: start.y },
+          { type: "pointerDown", button: 0 },
+          { type: "pointerMove", duration: 250, x: end.x, y: end.y },
+          { type: "pointerUp", button: 0 },
+        ],
+      }]);
+      await browser.waitUntil(async () => {
+        const current = await toolbarRect();
+        return current.left !== beforeToolbar.left || current.top !== beforeToolbar.top;
+      }, {
+        timeout: 15_000,
+        timeoutMsg: `[${hostLabel()}] Toolbar drag did not move the palette`,
+      });
+    } finally {
+      await browser.releaseActions();
+    }
+
+    const afterToolbar = await toolbarRect();
+    const afterScene = await sceneSnapshot();
+    expect(afterToolbar.left).toBeGreaterThanOrEqual(0);
+    expect(afterToolbar.top).toBeGreaterThanOrEqual(0);
+    expect(afterToolbar.left + afterToolbar.width).toBeLessThanOrEqual(afterToolbar.viewportWidth + 1);
+    expect(afterToolbar.top + afterToolbar.height).toBeLessThanOrEqual(afterToolbar.viewportHeight + 1);
+    expect(afterScene).toEqual(beforeScene);
+    expect(await canvasGestureState()).toEqual({ phase: "idle", transient: "false" });
+
+    await selectTool("pen");
+    await dragCanvas(await canvasPoint(0.7, 0.72), await canvasPoint(0.82, 0.78), beforeScene.count);
+  });
+
   it("keeps toolbar and canvas excluded from click-through input", async () => {
     await selectTool("pen");
     await browser.$('[aria-label="Tool properties"]').click();
@@ -355,6 +421,7 @@ describe("Phase 3 core annotation tools", () => {
     await browser.$('[aria-label="Tool properties"]').click();
 
     const sceneBeforeMode = await sceneSnapshot();
+    const toolbarBeforeMode = await toolbarRect();
     await dispatch("ToggleClickThrough");
     await waitForMode("VisibleClickThrough");
     await expect(await browser.$('[data-annotation-toolbar="true"]')).not.toExist();
@@ -368,6 +435,9 @@ describe("Phase 3 core annotation tools", () => {
     await dispatch("ToggleClickThrough");
     await waitForMode("VisibleInteractive");
     await expect(await browser.$('[data-annotation-toolbar="true"]')).toBeDisplayed();
+    const toolbarAfterMode = await toolbarRect();
+    expect(toolbarAfterMode.left).toBeCloseTo(toolbarBeforeMode.left, 0);
+    expect(toolbarAfterMode.top).toBeCloseTo(toolbarBeforeMode.top, 0);
     await expect(await browser.execute(() => {
       const canvas = document.querySelector<HTMLCanvasElement>('[data-overlay-canvas="true"]');
       return canvas ? getComputedStyle(canvas).pointerEvents : "missing";
