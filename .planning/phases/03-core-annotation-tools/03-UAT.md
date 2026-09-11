@@ -190,7 +190,7 @@ blocked: 0
   reason: "Ba suite native smoke không hoàn tất ổn định: invoke bridge timeout/unavailable, lifecycle state mismatch và pointer drag không commit."
   severity: major
   test: 20
-  root_cause: "WebDriver smoke target cố định cửa sổ bootstrap `overlay` đang hidden, trong khi canvas native hiển thị nằm ở các cửa sổ động `overlay-display-*`. Đường tạo cửa sổ động và bridge là asynchronous; test còn gọi bridge trực tiếp trước khi webview mục tiêu sẵn sàng, làm khuếch đại lỗi window-not-found/invoke timeout. Process còn lại có thể là tray lifecycle riêng, chưa phải nguyên nhân chính."
+  root_cause: "Có AND-gate ở native smoke: WDIO guest/direct-eval bridge chưa được cấu hình đầy đủ (`@wdio/tauri-plugin`/`__wdio_original_core__` không hiện diện), gây timeout validation 5 giây; đồng thời harness target cố định bootstrap `overlay` đang hidden trong khi canvas native hiển thị nằm ở cửa sổ động `overlay-display-*`, nên lifecycle state và pointer gesture bị quan sát trên sai webview. Process tray còn lại là lifecycle chủ đích, không phải nguyên nhân chính."
   artifacts:
     - path: "wdio.conf.ts"
       issue: "Runner hardcodes windowLabel `overlay`."
