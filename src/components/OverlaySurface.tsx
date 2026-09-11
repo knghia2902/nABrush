@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import type {
   AnnotationStyle,
   AnnotationTool,
@@ -492,6 +496,17 @@ type Props = {
   onEraseSceneItem: (id: string) => void;
 };
 
+type CanvasGestureEvent = {
+  button: number;
+  clientX: number;
+  clientY: number;
+  pointerId: number;
+  currentTarget: HTMLCanvasElement;
+  canCapture: boolean;
+};
+
+const FALLBACK_POINTER_ID = 1;
+
 export function OverlaySurface({
   mode,
   scene,
@@ -508,6 +523,9 @@ export function OverlaySurface({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textEditorRef = useRef<HTMLTextAreaElement>(null);
   const pointerIdRef = useRef<number | null>(null);
+  const pointerSequenceRef = useRef(false);
+  const suppressMouseUpRef = useRef(false);
+  const textShiftRef = useRef(false);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
   const gestureToolRef = useRef<AnnotationTool>(activeTool);
@@ -579,6 +597,7 @@ export function OverlaySurface({
     };
     const handleBlur = () => {
       cancelGesture();
+      textShiftRef.current = false;
       onCancelTextDraft();
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -589,12 +608,12 @@ export function OverlaySurface({
     };
   }, [cancelGesture, onCancelTextDraft]);
 
-  const eventPoint = (event: ReactPointerEvent<HTMLCanvasElement>): CanonicalPoint | null => {
+  const eventPoint = (event: CanvasGestureEvent): CanonicalPoint | null => {
     const point = normalizePointerPath([event], event.currentTarget.getBoundingClientRect(), viewport)[0];
     return point ?? null;
   };
 
-  const beginGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const beginGesture = (event: CanvasGestureEvent) => {
     if (mode !== "VisibleInteractive" || event.button !== 0) return;
     if (activeTool === "text") {
       if (!textDraft) {
@@ -613,7 +632,7 @@ export function OverlaySurface({
     }
     if (!isStrokeTool(activeTool) && !isShapeTool(activeTool)) return;
     if (pointerIdRef.current !== null) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.canCapture) event.currentTarget.setPointerCapture(event.pointerId);
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
     gestureStyleRef.current = { ...toolStyle };
@@ -622,7 +641,7 @@ export function OverlaySurface({
     setGesturePhase("pressed");
   };
 
-  const moveGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const moveGesture = (event: CanvasGestureEvent) => {
     if (mode !== "VisibleInteractive") return;
     if (activeTool === "eraser") {
       const point = eventPoint(event);
@@ -643,7 +662,7 @@ export function OverlaySurface({
     }
   };
 
-  const endGesture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const endGesture = (event: CanvasGestureEvent) => {
     const canvas = event.currentTarget;
     const rect = canvas.getBoundingClientRect();
     const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
@@ -677,24 +696,123 @@ export function OverlaySurface({
     onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool));
   };
 
+  const toCanvasGestureEvent = (
+    event: Pick<ReactPointerEvent<HTMLCanvasElement>, "button" | "clientX" | "clientY" | "pointerId" | "currentTarget">,
+    canCapture: boolean,
+  ): CanvasGestureEvent => ({
+    button: event.button,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    pointerId: event.pointerId,
+    currentTarget: event.currentTarget,
+    canCapture,
+  });
+
+  const placeTextFromMouseActivation = (event: Pick<ReactMouseEvent<HTMLCanvasElement>, "clientX" | "clientY" | "currentTarget">) => {
+    if (mode !== "VisibleInteractive" || activeTool !== "text" || textDraft) return;
+    beginGesture({
+      button: 0,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerId: FALLBACK_POINTER_ID,
+      currentTarget: event.currentTarget,
+      canCapture: false,
+    });
+  };
+
+  const dispatchMouseAsPointer = (event: ReactMouseEvent<HTMLCanvasElement>, type: "pointerdown" | "pointermove" | "pointerup") => {
+    event.currentTarget.dispatchEvent(new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: event.button,
+      buttons: type === "pointerup" ? 0 : 1,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      isPrimary: true,
+      pointerId: FALLBACK_POINTER_ID,
+      pointerType: "mouse",
+    }));
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    pointerSequenceRef.current = true;
+    suppressMouseUpRef.current = false;
+    beginGesture(toCanvasGestureEvent(event, true));
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    moveGesture(toCanvasGestureEvent(event, true));
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    endGesture(toCanvasGestureEvent(event, true));
+    pointerSequenceRef.current = false;
+    suppressMouseUpRef.current = true;
+  };
+
+  const handleMouseDown = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    // The embedded tauri-plugin-wdio-webdriver translates W3C pointer actions
+    // to MouseEvents. Adapt that legacy boundary back to PointerEvents so the
+    // renderer keeps one gesture implementation for real and WDIO input.
+    if (pointerSequenceRef.current || typeof PointerEvent === "undefined") return;
+    pointerSequenceRef.current = true;
+    suppressMouseUpRef.current = false;
+    dispatchMouseAsPointer(event, "pointerdown");
+  };
+
+  const handleMouseMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (!pointerSequenceRef.current || typeof PointerEvent === "undefined") return;
+    dispatchMouseAsPointer(event, "pointermove");
+  };
+
+  const handleMouseUp = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (suppressMouseUpRef.current) {
+      suppressMouseUpRef.current = false;
+      return;
+    }
+    if (!pointerSequenceRef.current || typeof PointerEvent === "undefined") return;
+    dispatchMouseAsPointer(event, "pointerup");
+    pointerSequenceRef.current = false;
+  };
+
+  const handleCanvasClick = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    // A few WebKit/native input paths deliver the click activation but skip
+    // the React pointerdown branch. Text placement is a click interaction, so
+    // use the click as a one-shot fallback only when no draft exists yet.
+    placeTextFromMouseActivation(event);
+  };
+
   const handlePointerCancel = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current === event.pointerId) cancelGesture();
+    pointerSequenceRef.current = false;
+    suppressMouseUpRef.current = true;
   };
 
   const handleLostPointerCapture = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pointerIdRef.current === event.pointerId) cancelGesture();
+    pointerSequenceRef.current = false;
+    suppressMouseUpRef.current = true;
   };
 
   const handleTextKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (!textDraft) return;
+    // Some embedded WebKit/WebDriver paths deliver modifier keydown events
+    // separately but leave `event.shiftKey` false on the following Enter.
+    // Track the physical Shift key as well as the browser modifier flag so
+    // multiline text remains reliable at that native keyboard boundary.
+    if (event.key === "Shift") {
+      textShiftRef.current = true;
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
+      textShiftRef.current = false;
       onCancelTextDraft();
       return;
     }
     if (event.key !== "Enter") return;
     if (event.nativeEvent.isComposing) return;
-    if (event.shiftKey) {
+    if (event.shiftKey || textShiftRef.current) {
       event.preventDefault();
       const next = textDraftTransition(textDraft, { type: "insert-newline" });
       if (next) {
@@ -708,8 +826,18 @@ export function OverlaySurface({
     if (next !== null) return;
     const item = createTextItem(`text-${nextItemIdRef.current + 1}`, textDraft);
     nextItemIdRef.current += 1;
+    textShiftRef.current = false;
     onCancelTextDraft();
     onCommitSceneItem(item);
+  };
+
+  const handleTextKeyUp = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Shift") textShiftRef.current = false;
+  };
+
+  const handleTextBlur = () => {
+    textShiftRef.current = false;
+    onCancelTextDraft();
   };
 
   const draftPosition = textDraft ? viewportPoint(textDraft.anchor, viewportSize(viewport).width, viewportSize(viewport).height, viewport) : null;
@@ -724,11 +852,15 @@ export function OverlaySurface({
         style={{ pointerEvents: canvasPointerEvents(mode), width: viewportSize(viewport).width, height: viewportSize(viewport).height }}
         width={Math.max(1, Math.round(viewportSize(viewport).width * viewport.scaleFactor))}
         height={Math.max(1, Math.round(viewportSize(viewport).height * viewport.scaleFactor))}
-        onPointerDown={beginGesture}
-        onPointerMove={moveGesture}
-        onPointerUp={endGesture}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handleLostPointerCapture}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onClick={handleCanvasClick}
         onPointerLeave={() => { if (activeTool === "eraser") setHoveredItemId(null); }}
         data-gesture-phase={gesturePhase}
         data-transient-active={transientSceneItem ? "true" : "false"}
@@ -743,7 +875,8 @@ export function OverlaySurface({
           value={textDraft.value}
           onChange={(event) => onUpdateTextDraft(event.target.value)}
           onKeyDown={handleTextKeyDown}
-          onBlur={onCancelTextDraft}
+          onKeyUp={handleTextKeyUp}
+          onBlur={handleTextBlur}
           rows={1}
           style={{ left: draftPosition.x, top: draftPosition.y, color: textDraft.style.color, fontSize: textDraft.style.textSize }}
         />

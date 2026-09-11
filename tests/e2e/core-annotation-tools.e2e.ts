@@ -1,15 +1,17 @@
 import { TOOL_ORDER } from "../../src/types/platform-parity";
 import type { SceneSnapshot } from "../../src/types/overlay";
+import {
+  ensureGeneratedOverlayInteractionTarget,
+  invokeNativeCommand,
+  selectVisibleGeneratedOverlay,
+  switchToBootstrapOverlay,
+} from "../../wdio.conf";
 
 type Point = { x: number; y: number };
 type CanvasGestureState = { phase: string; transient: string };
 
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  return browser.execute(async (name, payload) => {
-    const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: Function } }).__TAURI_INTERNALS__?.invoke;
-    if (!invoke) throw new Error("Tauri invoke bridge is unavailable");
-    return invoke(name, payload);
-  }, command, args ?? {}) as Promise<T>;
+  return invokeNativeCommand<T>(command, args ?? {});
 }
 
 async function dispatch(action: "Show" | "Esc" | "ToggleClickThrough") {
@@ -77,6 +79,46 @@ async function canvasGestureState(): Promise<CanvasGestureState> {
   });
 }
 
+async function installInputDiagnostics() {
+  await browser.execute(() => {
+    const scope = window as typeof window & {
+      __phase3InputEvents?: string[];
+      __phase3InputCleanup?: () => void;
+    };
+    scope.__phase3InputCleanup?.();
+    const events: string[] = [];
+    const listener = (event: Event) => {
+      const input = event as MouseEvent;
+      const target = event.target as HTMLElement | null;
+      events.push(`${event.type}:${target?.tagName ?? "?"}:${target?.getAttribute("data-toolbar-drag-handle") ?? ""}:${input.clientX},${input.clientY}`);
+    };
+    for (const type of ["mousedown", "mousemove", "mouseup", "pointerdown", "pointermove", "pointerup"]) {
+      window.addEventListener(type, listener, true);
+    }
+    scope.__phase3InputEvents = events;
+    scope.__phase3InputCleanup = () => {
+      for (const type of ["mousedown", "mousemove", "mouseup", "pointerdown", "pointermove", "pointerup"]) {
+        window.removeEventListener(type, listener, true);
+      }
+    };
+  });
+}
+
+async function inputDiagnostics(point: Point) {
+  return browser.execute((at) => {
+    const scope = window as typeof window & { __phase3InputEvents?: string[] };
+    const target = document.elementFromPoint(at.x, at.y) as HTMLElement | null;
+    return {
+      at,
+      element: target ? `${target.tagName}.${target.className}` : null,
+      toolbarHandle: Boolean(target?.closest('[data-toolbar-drag-handle="true"]')),
+      events: scope.__phase3InputEvents ?? [],
+      phase: document.querySelector<HTMLCanvasElement>('[data-overlay-canvas="true"]')?.getAttribute("data-gesture-phase"),
+      transient: document.querySelector<HTMLCanvasElement>('[data-overlay-canvas="true"]')?.getAttribute("data-transient-active"),
+    };
+  }, point);
+}
+
 async function toolbarRect() {
   return browser.execute(() => {
     const toolbar = document.querySelector<HTMLElement>('[data-annotation-toolbar="true"]');
@@ -94,6 +136,7 @@ async function toolbarRect() {
 }
 
 async function pointerMove(point: Point) {
+  await ensureGeneratedOverlayInteractionTarget("pointer move");
   await browser.performActions([{
     type: "pointer",
     id: "phase3-mouse",
@@ -103,6 +146,7 @@ async function pointerMove(point: Point) {
 }
 
 async function pointerDown(point: Point) {
+  await ensureGeneratedOverlayInteractionTarget("pointer down");
   await browser.performActions([{
     type: "pointer",
     id: "phase3-mouse",
@@ -115,6 +159,7 @@ async function pointerDown(point: Point) {
 }
 
 async function pointerUp(point: Point) {
+  await ensureGeneratedOverlayInteractionTarget("pointer up");
   await browser.performActions([{
     type: "pointer",
     id: "phase3-mouse",
@@ -132,6 +177,8 @@ async function clickCanvas(point: Point) {
 }
 
 async function dragCanvas(start: Point, end: Point, expectedCount: number) {
+  await ensureGeneratedOverlayInteractionTarget("canvas drag");
+  await installInputDiagnostics();
   const before = await sceneSnapshot();
   expect(before.count).toBe(expectedCount);
   try {
@@ -156,6 +203,7 @@ async function dragCanvas(start: Point, end: Point, expectedCount: number) {
     expect(await sceneSnapshot()).toEqual(before);
     expect(await canvasGestureState()).toEqual({ phase: "previewing", transient: "true" });
 
+    await ensureGeneratedOverlayInteractionTarget("canvas drag pointer up");
     await browser.performActions([{
       type: "pointer",
       id: "phase3-draw-pointer",
@@ -179,8 +227,10 @@ async function dragCanvas(start: Point, end: Point, expectedCount: number) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`[${hostLabel()}] Pointer path failed from ${JSON.stringify(start)} to ${JSON.stringify(end)}: ${message}`);
+    const diagnostics = await inputDiagnostics(start);
+    throw new Error(`[${hostLabel()}] Pointer path failed from ${JSON.stringify(start)} to ${JSON.stringify(end)}: ${message}; diagnostics=${JSON.stringify(diagnostics)}`);
   } finally {
+    await browser.execute(() => (window as typeof window & { __phase3InputCleanup?: () => void }).__phase3InputCleanup?.());
     try {
       await browser.releaseActions();
     } catch {
@@ -190,8 +240,10 @@ async function dragCanvas(start: Point, end: Point, expectedCount: number) {
 }
 
 async function openPropertiesFor(tool: (typeof TOOL_ORDER)[number]) {
-  const popover = await browser.$('[data-property-popover="true"]');
-  if (!(await popover.isExisting())) await browser.$('[aria-label="Tool properties"]').click();
+  await ensureGeneratedOverlayInteractionTarget(`open properties ${tool}`);
+  const properties = await browser.$('[aria-label="Tool properties"]');
+  await expect(await browser.$(`[data-tool="${tool}"]`)).toHaveAttribute("aria-pressed", "true");
+  if (await properties.getAttribute("aria-expanded") !== "true") await properties.click();
   await browser.waitUntil(async () => (await browser.$('[data-property-popover="true"]')).getAttribute("data-active-tool") === tool, {
     timeout: 15_000,
     timeoutMsg: `[${hostLabel()}] Property popover did not select ${tool}`,
@@ -199,10 +251,13 @@ async function openPropertiesFor(tool: (typeof TOOL_ORDER)[number]) {
 }
 
 async function closeProperties() {
-  if (await browser.$('[data-property-popover="true"]').isExisting()) await browser.$('[aria-label="Tool properties"]').click();
+  await ensureGeneratedOverlayInteractionTarget("close properties");
+  const properties = await browser.$('[aria-label="Tool properties"]');
+  if (await properties.getAttribute("aria-expanded") === "true") await properties.click();
 }
 
 async function setStyleControl(controlName: string, value: string) {
+  await ensureGeneratedOverlayInteractionTarget(`set style ${controlName}`);
   const control = await browser.$(`[data-style-control="${controlName}"]`);
   await control.waitForDisplayed();
   await control.setValue(value);
@@ -213,6 +268,7 @@ async function setStyleControl(controlName: string, value: string) {
 }
 
 async function selectTool(tool: (typeof TOOL_ORDER)[number]) {
+  await ensureGeneratedOverlayInteractionTarget(`select ${tool}`);
   const button = await browser.$(`[data-tool="${tool}"]`);
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", "true");
@@ -220,11 +276,13 @@ async function selectTool(tool: (typeof TOOL_ORDER)[number]) {
 
 describe("Phase 3 core annotation tools", () => {
   before(async () => {
-    await browser.tauri.switchWindow("overlay");
+    await switchToBootstrapOverlay("phase3 bootstrap");
     await dispatch("Show");
     await waitForMode("VisibleInteractive");
+    const target = await selectVisibleGeneratedOverlay("phase3 Show");
+    expect(target.selectedLabel).toMatch(/^overlay-display-/);
     await expect(await browser.$('[data-overlay-canvas="true"]')).toBeDisplayed();
-    await expect(await browser.$('[data-display-id]')).toExist();
+    expect(await browser.execute(() => document.querySelector("main")?.getAttribute("data-window-label"))).toMatch(/^overlay-display-/);
   });
 
   after(async () => {
@@ -256,6 +314,39 @@ describe("Phase 3 core annotation tools", () => {
     await selectTool("pen");
     await expect(await browser.$('[data-style-control="opacity"]')).toHaveValue(penOpacityValue);
     await browser.$('[aria-label="Tool properties"]').click();
+  });
+
+  it("places, edits, and commits a text draft through the native overlay", async () => {
+    const before = await sceneSnapshot();
+    const anchor = await canvasPoint(0.58, 0.3);
+    await selectTool("text");
+    await installInputDiagnostics();
+    try {
+      await clickCanvas(anchor);
+      const editor = await browser.$('[data-text-draft="true"]');
+      await editor.waitForDisplayed({ timeout: 5_000 });
+      await expect(editor).toBeFocused();
+      await editor.addValue("native text");
+      await expect(editor).toHaveValue("native text");
+      await browser.keys(["Shift", "Enter"]);
+      await editor.addValue("second line");
+      await expect(editor).toHaveValue("native text\nsecond line");
+      await browser.keys("Enter");
+      await browser.waitUntil(async () => (await sceneSnapshot()).count === before.count + 1, {
+        timeout: 15_000,
+        timeoutMsg: "Native Enter did not commit the text draft",
+      });
+      const after = await sceneSnapshot();
+      const native = await nativeSceneSnapshot();
+      const item = native.items.find((candidate) => candidate.id === after.ids.at(-1));
+      expect(item).toMatchObject({ kind: "text", tool: "text", text: "native text\nsecond line" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`${message}; text diagnostics=${JSON.stringify(await inputDiagnostics(anchor))}`);
+    } finally {
+      await browser.execute(() => (window as typeof window & { __phase3InputCleanup?: () => void }).__phase3InputCleanup?.());
+      await browser.releaseActions();
+    }
   });
 
   it("commits realtime drawing tools, distinct shape styles, text lifecycle, and one topmost erase", async () => {
@@ -324,12 +415,15 @@ describe("Phase 3 core annotation tools", () => {
     const editor = await browser.$('[data-text-draft="true"]');
     await editor.waitForDisplayed();
     await expect(editor).toHaveAttribute("data-scene-excluded", "true");
+    await ensureGeneratedOverlayInteractionTarget("text draft input");
     await editor.addValue("first line");
-    await editor.keys(["Shift", "Enter"]);
+    await ensureGeneratedOverlayInteractionTarget("text draft newline");
+    await browser.keys(["Shift", "Enter"]);
     await editor.addValue("second line");
     await expect(editor).toHaveValue("first line\nsecond line");
     const beforeTextCommit = await sceneSnapshot();
-    await editor.keys("Enter");
+    await ensureGeneratedOverlayInteractionTarget("text draft commit");
+    await browser.keys("Enter");
     await browser.waitUntil(async () => (await sceneSnapshot()).count === beforeTextCommit.count + 1, {
       timeout: 15_000,
       timeoutMsg: "Enter did not commit the text draft",
@@ -342,7 +436,8 @@ describe("Phase 3 core annotation tools", () => {
     await clickCanvas(await canvasPoint(0.58, 0.62));
     const beforeCancel = await sceneSnapshot();
     await expect(await browser.$('[data-text-draft="true"]')).toBeDisplayed();
-    await browser.$('[data-text-draft="true"]').keys("Escape");
+    await ensureGeneratedOverlayInteractionTarget("text draft cancel");
+    await browser.keys("Escape");
     await browser.waitUntil(async () => !(await browser.$('[data-text-draft="true"]').isExisting()), {
       timeout: 15_000,
       timeoutMsg: "Escape did not cancel the text draft",
@@ -379,6 +474,8 @@ describe("Phase 3 core annotation tools", () => {
 
     await expect(await browser.$('[data-toolbar-drag-handle="true"]')).toHaveAttribute("data-scene-excluded", "true");
     try {
+      await ensureGeneratedOverlayInteractionTarget("toolbar drag");
+      await installInputDiagnostics();
       await browser.performActions([{
         type: "pointer",
         id: "phase3-toolbar-pointer",
@@ -398,6 +495,9 @@ describe("Phase 3 core annotation tools", () => {
         timeoutMsg: `[${hostLabel()}] Toolbar drag did not move the palette`,
       });
     } finally {
+      const diagnostics = await inputDiagnostics(start);
+      console.log(`[${hostLabel()}] Toolbar input diagnostics ${JSON.stringify(diagnostics)}`);
+      await browser.execute(() => (window as typeof window & { __phase3InputCleanup?: () => void }).__phase3InputCleanup?.());
       await browser.releaseActions();
     }
 
