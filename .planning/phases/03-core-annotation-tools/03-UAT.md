@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 03-core-annotation-tools
 source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md
 started: 2026-09-11T02:53:04Z
-updated: 2026-09-11T06:12:00Z
+updated: 2026-09-11T06:25:00Z
 ---
 
 ## Current Test
@@ -174,33 +174,56 @@ blocked: 0
   reason: "User reported: Text không dùng được không hiện gì"
   severity: major
   test: 18
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Investigation inconclusive; leading cause is that native overlay/window input does not reliably deliver the placement pointerdown, so onPlaceTextDraft never runs. Remaining possibilities are click-through state, per-display overlay targeting, native focus/hit-testing, or a WebDriver-only input failure."
+  artifacts:
+    - path: "tests/e2e/core-annotation-tools.e2e.ts"
+      issue: "Native/W3C pointer action fails before the text placement handler."
+    - path: ".planning/debug/text-tool-draft-g-03-18.md"
+      issue: "Text draft and Enter commit work when pointerdown is delivered; real event delivery was not independently observed."
+  missing:
+    - "Independent evidence that placement pointerdown reaches the text tool on the real overlay"
+    - "A passing native text placement flow with draft visibility and keyboard commit/cancel"
+  debug_session: ".planning/debug/text-tool-draft-g-03-18.md"
 - truth: "Native smoke lifecycle chạy qua window lifecycle ổn định trên macOS"
   gap_id: G-03-20
   status: failed
   reason: "Ba suite native smoke không hoàn tất ổn định: invoke bridge timeout/unavailable, lifecycle state mismatch và pointer drag không commit."
   severity: major
   test: 20
-  root_cause: ""
+  root_cause: "WebDriver smoke target cố định cửa sổ bootstrap `overlay` đang hidden, trong khi canvas native hiển thị nằm ở các cửa sổ động `overlay-display-*`. Đường tạo cửa sổ động và bridge là asynchronous; test còn gọi bridge trực tiếp trước khi webview mục tiêu sẵn sàng, làm khuếch đại lỗi window-not-found/invoke timeout. Process còn lại có thể là tray lifecycle riêng, chưa phải nguyên nhân chính."
   artifacts:
-    - "wdio.conf.ts"
-    - "tests/e2e/core-annotation-tools.e2e.ts"
+    - path: "wdio.conf.ts"
+      issue: "Runner hardcodes windowLabel `overlay`."
+    - path: "tests/e2e/overlay.e2e.ts"
+      issue: "Smoke switches to the bootstrap label instead of asserting the visible generated overlay target."
+    - path: "src-tauri/src/controller.rs"
+      issue: "Show/reconcile creates and shows per-display overlay windows asynchronously."
+    - path: "src-tauri/src/overlay_registry.rs"
+      issue: "Visible native surfaces use generated `overlay-display-*` labels."
   missing:
-    - "Một lần chạy xanh của phase3-tools, short-lifecycle và phase1-matrix trên macOS"
-  debug_session: ""
+    - "WebDriver target identity and readiness must match the visible generated overlay window"
+    - "A green run of phase3-tools, short-lifecycle and phase1-matrix on macOS"
+  debug_session: ".planning/debug/g-03-20-native-lifecycle.md"
 - truth: "Native parity trên Windows xác nhận pointer input, text/IME, eraser, click-through, style và lifecycle"
   gap_id: G-03-21
   status: failed
   reason: "User reported Windows gặp tình trạng tương tự macOS; native lifecycle/bridge và pointer commit chưa ổn định."
   severity: major
   test: 21
-  root_cause: ""
+  root_cause: "Không có bằng chứng runtime Windows độc lập: Windows được ghi nhận NOT RUN, CI không chạy full phase3-tools parity matrix và không lưu native artifacts. Shared E2E path còn target bootstrap `overlay` bị hidden thay vì `overlay-display-*`; đây là rủi ro được chứng minh trên macOS nhưng chưa xác nhận là Windows runtime root cause."
   artifacts:
-    - "wdio.conf.ts"
-    - "tests/e2e/core-annotation-tools.e2e.ts"
+    - path: ".planning/phases/03-core-annotation-tools/03-VALIDATION.md"
+      issue: "Windows parity rows remain NOT RUN/PENDING and no dated host evidence is retained."
+    - path: "src-tauri/src/platform/windows.rs"
+      issue: "Policy tests exist but install_observer is a no-op; no host-level input/lifecycle result."
+    - path: "wdio.conf.ts"
+      issue: "Runner uses the shared hidden bootstrap window label."
+    - path: ".github/workflows/phase1.yml"
+      issue: "Windows workflow does not execute the full Phase 3 parity matrix or upload native artifacts."
+    - path: ".planning/debug/g-03-21-windows-parity.md"
+      issue: "Investigation found an evidence gap and shared target/readiness risk, not a confirmed Windows-only defect."
   missing:
-    - "Bằng chứng chạy xanh trên Windows cho toàn bộ parity matrix"
-  debug_session: ""
+    - "Một lần chạy full phase3-tools parity matrix trên Windows thật"
+    - "Bằng chứng host-level cho pointer input, text/IME, eraser, click-through, style và lifecycle"
+    - "Native logs/results có timestamp được lưu lại"
+  debug_session: ".planning/debug/g-03-21-windows-parity.md"
