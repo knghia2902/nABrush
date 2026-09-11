@@ -1,12 +1,11 @@
 ---
 phase: 03-core-annotation-tools
-verified: 2026-09-10T19:28:21Z
+verified: 2026-09-11T02:31:36Z
 status: gaps_found
-score: 0/5 must-haves verified
+score: 9/20 must-haves verified
 covered_files:
   - ".planning/REQUIREMENTS.md"
   - ".planning/ROADMAP.md"
-  - ".planning/STATE.md"
   - ".planning/phases/03-core-annotation-tools/03-01-PLAN.md"
   - ".planning/phases/03-core-annotation-tools/03-01-SUMMARY.md"
   - ".planning/phases/03-core-annotation-tools/03-02-PLAN.md"
@@ -15,220 +14,267 @@ covered_files:
   - ".planning/phases/03-core-annotation-tools/03-03-SUMMARY.md"
   - ".planning/phases/03-core-annotation-tools/03-04-PLAN.md"
   - ".planning/phases/03-core-annotation-tools/03-04-SUMMARY.md"
+  - ".planning/phases/03-core-annotation-tools/03-05-PLAN.md"
+  - ".planning/phases/03-core-annotation-tools/03-05-SUMMARY.md"
+  - ".planning/phases/03-core-annotation-tools/03-06-PLAN.md"
+  - ".planning/phases/03-core-annotation-tools/03-06-SUMMARY.md"
+  - ".planning/phases/03-core-annotation-tools/03-07-PLAN.md"
+  - ".planning/phases/03-core-annotation-tools/03-07-SUMMARY.md"
+  - ".planning/phases/03-core-annotation-tools/03-08-PLAN.md"
+  - ".planning/phases/03-core-annotation-tools/03-08-SUMMARY.md"
   - ".planning/phases/03-core-annotation-tools/03-CONTEXT.md"
   - ".planning/phases/03-core-annotation-tools/03-VALIDATION.md"
   - "src-tauri/src/main.rs"
   - "src-tauri/src/overlay_registry.rs"
   - "src/App.tsx"
+  - "src/components/AnnotationToolbar.tsx"
   - "src/components/OverlaySurface.tsx"
+  - "src/components/annotation-toolbar.test.tsx"
   - "src/components/overlay-surface.test.tsx"
   - "src/state/annotation.test.ts"
   - "src/state/annotation.ts"
   - "src/state/overlay.test.ts"
   - "src/styles.css"
   - "src/types/overlay.ts"
+  - "src/types/platform-parity.ts"
   - "tests/e2e/core-annotation-tools.e2e.ts"
+  - "tests/e2e/overlay.e2e.ts"
   - "wdio.conf.ts"
-covered_digest: "v1:sha256:e423c4f1beb4ecd025eac37513154a19efad1d415a177a6e34dd02c591ec1bbf"
-behavior_unverified: 4
+covered_digest: "v1:sha256:2efe429a7ae3dc5e0de5e26cff4ccf5743c94978632a0ad363b417f27d183312"
+behavior_unverified: 11
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 0/5
+  gaps_closed:
+    - "Rectangle and ellipse fillColor/fillOpacity controls"
+    - "Canonical MVP user-story goal"
+    - "Evidence-consistent validation ledger"
+  gaps_remaining:
+    - "Native Phase 3 pointer-flow evidence on macOS and Windows"
+  regressions: []
+gaps:
+  - truth: "Native Phase 3 smoke evidence proves pointer gestures commit all drawing tools on supported hosts."
+    status: partial
+    reason: "The macOS WebKit phase3-tools flow still fails before full gesture coverage, and no Windows host is available. The source path is present and wired, but native pointer-up, text, eraser, click-through, and cross-platform behavior are not proven."
+    artifacts:
+      - path: "tests/e2e/core-annotation-tools.e2e.ts"
+        issue: "The suite contains explicit W3C pointer, preview-before-up, scene-count, text, eraser, fill-style, and click-through assertions, but the macOS run does not reach them."
+      - path: "wdio.conf.ts"
+        issue: "The embedded Tauri WebKit runner is configured, but current macOS window switching reports repeated window-not-found failures."
+      - path: ".planning/phases/03-core-annotation-tools/03-VALIDATION.md"
+        issue: "macOS is recorded as native FAIL and Windows as NOT RUN; manual rows and approval remain pending."
+    missing:
+      - "Obtain a passing macOS native run that reaches pointer preview and pointer-up assertions."
+      - "Run the equivalent native smoke and manual checks on Windows."
+      - "Re-run short-lifecycle and phase1-matrix after the window lifecycle issue is resolved."
+advisory: []
+behavior_unverified_items:
+  - truth: "Presenter can draw pen and highlighter with a realtime transient preview and one valid retained commit."
+    test: "Draw pen and highlighter strokes with real pointer input on macOS and Windows."
+    expected: "Preview appears while held, retained scene remains unchanged, and pointer-up adds exactly one styled item."
+    why_human: "Pure tests and source wiring pass, but phase3-tools does not reach the gesture path."
+  - truth: "Pen and highlighter keep independent style snapshots from gesture start."
+    test: "Change a tool style between gestures and inspect committed items."
+    expected: "Each committed item preserves the style active when its gesture began."
+    why_human: "State and renderer helpers are tested, but the native gesture/state transition is not exercised."
+  - truth: "Toolbar selection and active-tool property popovers work in the overlay."
+    test: "Select all eight tools and change a property on each relevant tool."
+    expected: "The active tool and only that tool's style controls update without scene mutation."
+    why_human: "Static component assertions pass, but native selection did not complete."
+  - truth: "Line and arrow drags preview and commit only at the valid geometry threshold."
+    test: "Perform valid, short, cancelled, and outside line/arrow drags."
+    expected: "Valid drags commit one item; short or cancelled gestures leave the scene unchanged; arrows have a solid directional head."
+    why_human: "Geometry helpers and arrow rendering are tested, but native pointer-up behavior is unproven."
+  - truth: "Rectangle and ellipse styles are independently configurable and retained."
+    test: "Set distinct fill mode, fill color, and fill opacity values for rectangle and ellipse, then draw both."
+    expected: "The controls update the active tool and each committed shape retains its own values."
+    why_human: "Controls, state, and unit assertions exist, but native shape commit evidence is unavailable."
+  - truth: "Text draft placement, keyboard commit/cancel, and IME composition are safe."
+    test: "Place text, type with Shift+Enter, commit with Enter, repeat and cancel with Escape, including composition."
+    expected: "Only deliberate non-composing Enter commits non-empty text; newline and Escape affect only the draft."
+    why_human: "Pure draft transitions pass, but native focus/IME flow is not reached."
+  - truth: "Committed text renders as measured Canvas lines while the editor remains scene-excluded."
+    test: "Inspect committed multiline text and the draft editor during a native flow."
+    expected: "Committed lines render from retained text data and the editor never becomes a SceneItem."
+    why_human: "Renderer tests prove the Canvas path; native editor lifecycle is not reached."
+  - truth: "Eraser hover selects the topmost item using padded type-specific hit testing."
+    test: "Hover overlapping stroke/shape/text items on macOS and Windows."
+    expected: "Only the latest matching item receives the hover target/highlight."
+    why_human: "Reverse-order hit testing is unit-tested, but native hover behavior is unverified."
+  - truth: "Eraser click removes at most one item and drag/no-op paths preserve unrelated items."
+    test: "Click an overlap, click empty space, and drag with the eraser."
+    expected: "One click removes one target; empty/drag gestures do not bulk erase or mutate unrelated items."
+    why_human: "Rust store and pure hit-test behavior pass, but native eraser behavior is not reached."
+  - truth: "The complete phase3-tools smoke suite proves selection, drawing, text, eraser, fill styles, and click-through."
+    test: "Run the suite on each supported host."
+    expected: "All assertions pass and the suite reports no lifecycle or cleanup failure."
+    why_human: "The macOS run exits 1 before gesture assertions and Windows is unavailable."
+  - truth: "Pointer cancellation, Escape, focus loss, mode change, short drags, and outside pointer-up leave the scene unchanged."
+    test: "Trigger each cancellation path during an active gesture."
+    expected: "Transient state clears, capture is released, and no duplicate or partial item is committed."
+    why_human: "Source branches and focused helpers exist, but no passing native test exercises these transitions."
 decision_coverage:
   honored: 17
   total: 17
   not_honored: []
-gaps:
-  - truth: "User can configure rectangle and ellipse stroke plus fill color and fill opacity independently."
-    status: failed
-    reason: "The style model and renderer support fillColor/fillOpacity, but the shipped property popover only renders the fill mode selector; no user control writes fillColor or fillOpacity."
-    artifacts:
-      - path: "src/App.tsx"
-        issue: "The rectangle/ellipse branch exposes only data-style-control=fill (lines 108-115); fillColor and fillOpacity controls are absent."
-      - path: "src/components/OverlaySurface.tsx"
-        issue: "Rendering consumes fillColor/fillOpacity, but that does not make the values configurable from the toolbar."
-    missing:
-      - "Add rectangle and ellipse fill-color and fill-opacity controls."
-      - "Preserve independent per-tool values and add an integration assertion that the controls update the active shape style."
-  - truth: "Phase 3 MVP user-flow verification has a valid user-story goal contract."
-    status: failed
-    reason: "ROADMAP marks Phase 3 mode as mvp, but the canonical user-story validator returns valid=false because the goal is not in the required 'As a ..., I want to ..., so that ... .' form."
-    artifacts:
-      - path: ".planning/ROADMAP.md"
-        issue: "The Phase 3 goal is an outcome sentence rather than a canonical MVP user story."
-    missing:
-      - "Run /gsd mvp-phase 3 and set a valid user-story goal before claiming MVP user-flow coverage."
-  - truth: "Native Phase 3 smoke evidence proves pointer gestures commit all drawing tools on supported hosts."
-    status: partial
-    reason: "The macOS embedded-WebKit suite launched and passed tool selection plus click-through checks, but the drawing flow failed at pointer-up with zero retained items. No Windows runner was available, so neither platform has complete native gesture evidence."
-    artifacts:
-      - path: "tests/e2e/core-annotation-tools.e2e.ts"
-        issue: "The named drawing test fails in dragCanvas at line 114; the suite reports 2 passing and 1 failing test."
-      - path: ".planning/phases/03-core-annotation-tools/03-VALIDATION.md"
-        issue: "The validation matrix records all rows as pending and does not convert the native limitation into completed evidence."
-    missing:
-      - "Obtain reproducible macOS native pointer-up commit evidence or fix the WebKit input path."
-      - "Run the equivalent Phase 3 smoke suite on Windows."
-  - truth: "Phase 3 validation artifact records completed, auditable evidence."
-    status: partial
-    reason: "03-VALIDATION.md remains status=draft, nyquist_compliant=false, wave_0_complete=false, with pending task rows and pending approval despite the phase summaries claiming execution."
-    artifacts:
-      - path: ".planning/phases/03-core-annotation-tools/03-VALIDATION.md"
-        issue: "The artifact is a pending matrix rather than a completed validation record."
-    missing:
-      - "Update the validation artifact with actual command results and explicit native/manual gaps, or keep the phase visibly incomplete until sign-off."
-behavior_unverified_items:
-  - truth: "User can draw freehand pen and semi-transparent highlighter strokes with independent color, opacity, and width settings."
-    test: "Use real pointer input on macOS and Windows to draw a pen stroke and a highlighter stroke, changing each tool's settings between gestures."
-    expected: "A realtime transient preview appears without mutating the retained scene, then pointer-up commits exactly one canonical item with the selected per-tool style."
-    why_human: "Source wiring and pure tests exist, but the only native drawing test fails before pointer-up commit; no passing behavioral test exercises this transition."
-  - truth: "User can drag to create straight lines and arrows with configurable color, opacity, and width, seeing a preview before committing."
-    test: "Drag a line and an arrow in each supported native environment, including an invalid short drag and Escape cancellation."
-    expected: "The preview follows the pointer, valid pointer-up commits one item, and short/cancelled gestures leave the retained scene unchanged."
-    why_human: "The integration test aborts on the first drawing gesture, while unit tests cover geometry helpers rather than the native pointer lifecycle."
-  - truth: "User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations."
-    test: "Place text, type with Shift+Enter, commit with Enter, then separately place and cancel with Escape, including IME composition."
-    expected: "Enter commits non-empty text, Shift+Enter inserts a newline, Escape removes only the draft, and existing scene items remain unchanged."
-    why_human: "Text transition helpers are tested, but the native E2E test never reaches the text steps and IME behavior cannot be proven by source inspection."
-  - truth: "User can use a click-only eraser to remove one topmost annotation without affecting unrelated annotations."
-    test: "Hover and click overlapping items, then try dragging with the eraser in macOS and Windows."
-    expected: "The topmost/latest hit is highlighted, one click removes only that item, and dragging does not erase additional items."
-    why_human: "Topmost hit-testing and native command wiring are present, but the native test does not reach its eraser step and platform hit-testing remains unverified."
-human_verification:
-  - test: "Resolve the Phase 3 MVP goal contract."
-    expected: "After /gsd mvp-phase 3, the roadmap goal validates as a canonical user story and user-flow coverage can be assessed against the outcome clause."
-    why_human: "The current roadmap goal is not a valid MVP user story, so the centralized validator refuses MVP flow verification."
-  - test: "Run the complete native pointer flow on macOS."
-    expected: "Pen, highlighter, line, arrow, rectangle, ellipse, text, and eraser commit/cancel behavior matches the locked decisions, including realtime preview, thresholds, canonical coordinates, keyboard lifecycle, and topmost erasing."
-    why_human: "The macOS WebKit run currently fails at the first pointer-up commit assertion; browser/unit evidence cannot establish native overlay input delivery."
-  - test: "Run the complete Phase 3 smoke suite on Windows."
-    expected: "The same drawing, text, eraser, click-through, monitor, and shortcut behaviors work on Windows."
-    why_human: "No Windows runner or native evidence was available in this verification."
-  - test: "Verify rectangle and ellipse fill controls after implementing them."
-    expected: "Fill color and fill opacity are independently configurable per shape tool and are preserved in the committed scene item."
-    why_human: "The current UI has no controls for these values, and the visual result requires native rendering inspection."
-  - test: "Verify native text/IME, eraser hover, click-only behavior, and mixed-display rendering."
-    expected: "Text composition and Enter/Shift+Enter/Escape behavior are correct; eraser hover selects only the topmost item; thin defaults, arrowheads, fills, negative origins, rotation, and mixed DPR render correctly."
-    why_human: "These are interaction, platform, and visual behaviors not established by the current automated checks."
 ---
 
 # Phase 3: Core Annotation Tools Verification Report
 
-**Phase Goal:** Người dùng có thể tạo các chú thích cơ bản nhanh và mượt trên scene overlay bằng chuột hoặc bàn phím điều khiển.
-**Verified:** 2026-09-10T19:28:21Z
+**Phase Goal:** As a presenter, I want to create basic annotations quickly and smoothly on the overlay scene using pointer or keyboard controls, so that I can explain on-screen content without leaving the active application.
+**Verified:** 2026-09-11T02:31:36Z
 **Status:** gaps_found
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — after gap-closure plans 03-05 through 03-08
 
 ## User Flow Coverage
 
-Not certified. Phase 3 is marked \`mode: mvp\`, but \`gsd_run query user-story.validate --story ... --pick valid\` returned \`false\`. The goal does not match the required canonical MVP user-story form, so the MVP verifier cannot truthfully produce user-flow coverage until the roadmap goal is corrected.
+The MVP goal now passes the canonical user-story validator. The flow is implemented in source, but the final user-visible outcome is not certified because the available macOS WebKit runs fail during window lifecycle handling and no Windows host is available.
+
+| Step | Expected | Evidence | Status |
+|------|----------|----------|--------|
+| Activate overlay | Overlay enters `VisibleInteractive` over the active application | `src-tauri/src/main.rs`, `src/App.tsx`, `tests/e2e/core-annotation-tools.e2e.ts` | ⚠️ present, native unverified |
+| Choose a tool and style | Eight tools appear in the shared order; active-tool properties update | `src/components/AnnotationToolbar.tsx`, `src/components/annotation-toolbar.test.tsx`, `src/state/annotation.ts` | ⚠️ present, native unverified |
+| Draw annotations | Pointer preview appears and valid pointer-up commits retained scene data | `src/components/OverlaySurface.tsx`, `src/components/overlay-surface.test.tsx`, native suite | ⚠️ present, native unverified |
+| Use text, eraser, and click-through controls | Keyboard lifecycle and one-item erase work without collateral scene changes | `src/App.tsx`, `src-tauri/src/overlay_registry.rs`, E2E assertions | ⚠️ present, native unverified |
+| Outcome | Presenter can explain on-screen content without leaving the active application | Full source path exists, but macOS native gesture evidence failed and Windows was not run | ✗ NOT CERTIFIED |
 
 ## Goal Achievement
+
+The 20 rows below are the deduplicated union of the five roadmap success criteria and all eight PLAN `must_haves.truths` blocks. Repeated plan wording is represented once with the implementation evidence traced below.
 
 ### Observable Truths
 
 | # | Truth | Status | Evidence |
-| --- | --- | --- | --- |
-| 1 | User can draw freehand pen and semi-transparent highlighter strokes with independent color, opacity, and width settings. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | \`src/types/overlay.ts\`, \`src/state/annotation.ts\`, \`src/components/OverlaySurface.tsx\`, and the native bridge contain the style/state/commit path; \`pnpm test\` passes. No passing native pointer test proves the transition, and the macOS E2E drawing flow fails before the first commit. |
-| 2 | User can drag to create straight lines and arrows with configurable color, opacity, and width, seeing a preview before committing. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | \`OverlaySurface.tsx\` contains canonical drag conversion, realtime transient candidates, geometry validation, arrowhead rendering, and pointer-up commit logic; helper tests pass. The native gesture path is not behaviorally proven. |
-| 3 | User can drag to create rectangles and ellipses with configurable stroke and fill/opacity settings. | ✗ FAILED | Bounds, fill, opacity, and renderer support exist, but \`App.tsx\` exposes only the fill mode selector. Fill color and fill opacity are not configurable by the user, so DRAW-04 is not achieved. |
-| 4 | User can place text, edit it, commit it deliberately, or cancel it without changing existing annotations, with configurable color and text size. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | \`annotation.ts\` implements draft transitions and \`OverlaySurface.tsx\` wires Enter/Shift+Enter/Escape plus draft-only rendering; unit tests and build pass. The native E2E text path is not reached and IME behavior is not proven. |
-| 5 | User can use an eraser to remove one selected annotation without affecting unrelated annotations. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | \`findTopmostHit\`, click-only erasing, Rust single-item removal, and whole-snapshot broadcast are wired and tested in pure/native-store tests. The native eraser gesture path is not reached by a passing E2E test. |
+|---|---|---|---|
+| 1 | Pen/highlighter preview and valid one-item commit | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `OverlaySurface.tsx` snapshots style, keeps transient React state, converts to canonical points, and invokes `commit_scene_item` only after terminal validation; unit tests pass, native gesture evidence is absent. |
+| 2 | Independent pen/highlighter color, opacity, and width snapshots | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `DEFAULT_TOOL_STYLES`, immutable style copies, and renderer style use are present; no passing native gesture test verifies the end-to-end transition. |
+| 3 | Bottom toolbar, shared order, active-tool popover | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `AnnotationToolbar.tsx`, `App.tsx`, and CSS are wired; component tests prove shape controls and markers, but native selection did not run to completion. |
+| 4 | Typed, bounded Rust scene boundary with duplicate/no-op safety | ✓ VERIFIED | `overlay_registry.rs` validates typed payloads, finite/ranged geometry/style, unknown fields, IDs, text/point bounds, duplicate IDs, and no-mutation rejects; `main.rs` registers and broadcasts commands. Cargo check passes and the recorded native-store suite passed. |
+| 5 | Canonical desktop points, per-viewport transforms, DPR backing, and scene-excluded chrome | ✓ VERIFIED | `OverlaySurface.tsx` contains canonical/rotated/negative-origin transforms and DPR sizing; `styles.css` and `data-scene-excluded` keep toolbar/editor/badges out of scene data; focused tests pass. |
+| 6 | Line/arrow preview, canonical anchor/end, and short-drag threshold | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `MIN_GEOMETRY_DRAG`, transient geometry helpers, terminal guards, and focused tests exist; native pointer-up behavior is not proven. |
+| 7 | Solid directional triangular arrowhead | ✓ VERIFIED | `arrowheadPath` and `drawArrowGeometry` are substantive; the renderer test asserts triangle orientation and a single filled head. |
+| 8 | Rectangle/ellipse stroke, fill mode, fill color, and fill opacity are independently configurable and retained | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `AnnotationToolbar.tsx` now exposes `fill`, `fillColor`, and `fillOpacity`; `App.tsx` routes patches into `stylesByTool`; state/renderer/native tests pass, but native shape commit evidence is unavailable. |
+| 9 | Native geometry/style validation matches the typed tool | ✓ VERIFIED | Rust `validate_geometry` rejects mismatched variants and invalid bounds; inline registry tests cover line/arrow and rectangle/ellipse payloads and mutation safety. |
+| 10 | Text draft placement, edit, deliberate commit, cancel, and IME safety | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `textDraftTransition`, focused textarea handling, Enter/Shift+Enter/Escape, composition guard, mode/focus cleanup, and unit tests exist; native focus/IME flow is not reached. |
+| 11 | Committed text renders as measured Canvas lines; draft/editor is scene-excluded | ✓ VERIFIED | `drawTextItem` uses measured multiline Canvas rendering, while the draft is a DOM textarea with `data-scene-excluded`; renderer and transition tests pass. |
+| 12 | Eraser hover uses padded, type-specific hit testing and reverse scene order | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `hitTestSceneItem` and `findTopmostHit` implement stroke/line/shape/text hit areas and reverse order; unit tests pass, native hover is unverified. |
+| 13 | Eraser click removes one ID and preserves unrelated/no-op snapshots | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `erase_scene_item` removes at most one ID and broadcasts the full snapshot; Rust tests prove exact-one/no-op behavior, but native click/drag behavior is unverified. |
+| 14 | Phase3-tools smoke covers all tools, styles, text, eraser, and click-through | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `wdio.conf.ts` registers the suite and the E2E file contains the requested assertions; the current macOS run fails before gesture assertions. |
+| 15 | Toolbar/property/editor are scene-excluded and click-through passes input | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | CSS pointer boundaries, mode-controlled rendering, and E2E selectors are wired; native lifecycle failure prevented completion. |
+| 16 | Validation ledger records task IDs, commands, outcomes, platform boundaries, and manual gaps | ✓ VERIFIED | `03-VALIDATION.md` contains all 16 task rows, exact commands, exit/result fields, macOS/Windows rows, manual matrix, and explicit incomplete sign-off. |
+| 17 | macOS and Windows evidence remain separate with no inferred parity | ✓ VERIFIED | Validation rows explicitly mark macOS WebKit failure and Windows `NOT RUN — no Windows host available`; the phase summaries and audit preserve that boundary. |
+| 18 | Source audit covers the goal, DRAW-01..06, R-01..09, and D-01..17 | ✓ VERIFIED | The final multi-source audit contains every required source ID and concrete plan references through 03-08; decision coverage reports 17/17 honored. |
+| 19 | ROADMAP contains the canonical MVP user story | ✓ VERIFIED | `.planning/ROADMAP.md:120` matches the requested story exactly; `user-story.validate` returned `true`. |
+| 20 | Validation status/sign-off agrees with absent native/Windows evidence | ✓ VERIFIED | `03-VALIDATION.md` remains `status: gaps_found`, `nyquist_compliant: false`, `wave_0_complete: false`, with approval pending, matching the observed failures and unavailable host. |
 
-**Score:** 0/5 truths verified (4 present and wired but behavior-unverified)
+**Score:** 9/20 truths verified (11 present and wired but behavior-unverified). The five roadmap success criteria are all in the behavior-unverified set; no roadmap outcome is certified solely from source presence.
 
-### Decision Coverage
-
-\`check.decision-coverage-verify\` reports 17/17 trackable decisions honored. The implementation contains the locked transient preview, thin defaults, canonical-coordinate, geometry-threshold/cancel, arrowhead/fill, text-keyboard, and topmost single-item eraser decisions. This is a non-blocking consistency result; it does not replace runtime native evidence.
-
-### Required Artifacts
+## Required Artifacts
 
 | Artifact | Expected | Status | Details |
-| --- | --- | --- | --- |
-| \`src/types/overlay.ts\` | Typed scene items and per-tool styles | ✓ VERIFIED | Contains stroke, line/arrow, rectangle/ellipse, text, draft, fill, opacity, width, and text-size types; consumed by state, renderer, and Rust bridge. |
-| \`src/state/annotation.ts\` | Tool state, draft transitions, geometry/hit-test rules | ✓ VERIFIED | Substantive implementation with thresholds, canonical geometry helpers, text lifecycle, and reverse-order topmost hit testing. |
-| \`src/components/OverlaySurface.tsx\` | Realtime overlay rendering and pointer/keyboard lifecycle | ✓ VERIFIED (runtime unverified) | Retained scene plus transient candidate is rendered; pointer capture, canonical conversion, commit/cancel, text draft, and eraser hover/click paths are wired. Native pointer delivery is not proven. |
-| \`src/App.tsx\` | Toolbar, per-tool property controls, scene/native bridge | ⚠️ PARTIAL | Toolbar and most controls are wired to React state and native commands, but shape fill color and fill opacity controls are missing. |
-| \`src/styles.css\` | Scene-excluded toolbar/popover layering and mode-specific pointer behavior | ✓ VERIFIED (visual/native unverified) | Includes scene-excluded toolbar/editor markers, click-through canvas mode, and interactive toolbar/popover pointer rules. |
-| \`src-tauri/src/overlay_registry.rs\` | Typed validation, commit, topmost-safe single erase, tests | ✓ VERIFIED | Validates typed payloads and style/geometry bounds, rejects invalid/duplicate items without mutation, and erases at most one matching ID. |
-| \`src-tauri/src/main.rs\` | Registered commit/erase commands and scene broadcasts | ✓ VERIFIED | \`get_scene_snapshot\`, \`commit_scene_item\`, and \`erase_scene_item\` are registered; accepted store results are broadcast as whole snapshots. |
-| \`tests/e2e/core-annotation-tools.e2e.ts\` and \`wdio.conf.ts\` | Native smoke coverage for Phase 3 | ⚠️ PARTIAL | Suite is registered and runs on macOS WebKit; selection and click-through pass, but drawing fails at pointer-up and Windows is unavailable. |
-| \`.planning/phases/03-core-annotation-tools/03-VALIDATION.md\` | Auditable validation matrix and sign-off | ⚠️ PARTIAL | Matrix includes the expected task/requirement coverage, but remains draft with pending rows, unchecked Wave 0, and pending approval. |
+|---|---|---|---|
+| `src/types/overlay.ts` | Typed stroke, geometry, text, style, snapshot contracts | ✓ VERIFIED | Substantive discriminated unions and canonical viewport types are consumed by state, renderer, App, and Rust bridge. |
+| `src/state/annotation.ts` and tests | Tool styles, geometry thresholds, text transitions, hit testing | ✓ VERIFIED | 266-line implementation plus active unit coverage; imported by App and OverlaySurface. |
+| `src/components/OverlaySurface.tsx` and tests | Canvas rendering and pointer/keyboard lifecycle | ✓ VERIFIED (runtime unverified) | 753-line implementation is imported/rendered by App; focused tests pass, native pointer behavior remains unproven. |
+| `src/components/AnnotationToolbar.tsx` and tests | Active-tool controls including shape fill controls | ✓ VERIFIED | Imported by App; `fillColor` and `fillOpacity` controls are present and tested. |
+| `src/App.tsx` and `src/styles.css` | Scene/native bridge and scene-excluded chrome | ✓ VERIFIED | App hydrates/listens/commits/erases through Tauri; CSS is imported by `main.tsx` and enforces pointer boundaries. |
+| `src-tauri/src/overlay_registry.rs` | Typed validation, retained scene, exact-one erase, broadcast | ✓ VERIFIED | Native store and inline tests are substantive; `main.rs` invokes and registers the commands. |
+| `src-tauri/src/main.rs` | Command registration and scene synchronization | ✓ VERIFIED | `get_scene_snapshot`, `commit_scene_item`, `erase_scene_item`, and `scene-changed` broadcast are wired. |
+| `tests/e2e/core-annotation-tools.e2e.ts` and `wdio.conf.ts` | Native Phase 3 smoke path | ⚠️ PARTIAL | Suite registration and assertions exist; current macOS WebKit lifecycle failure prevents full behavior evidence. |
+| `.planning/ROADMAP.md` | Canonical MVP goal | ✓ VERIFIED | Exact goal and translated companion are present. |
+| `.planning/phases/03-core-annotation-tools/03-VALIDATION.md` | Auditable evidence ledger | ✓ VERIFIED | Evidence-consistent and intentionally incomplete; it does not claim unsupported native or Windows success. |
 
-### Key Link Verification
+## Key Link Verification
 
 | From | To | Via | Status | Details |
-| --- | --- | --- | --- | --- |
-| \`OverlaySurface.tsx\` | \`SceneStore\` | canonical pointer samples → transient item → \`commit_scene_item\` invoke | WIRED | Source path is complete through \`App.tsx\` and Rust command registration; native E2E fails to demonstrate the pointer-up event. |
-| \`TOOL_ORDER\` / toolbar buttons | active tool styles | React active tool and \`stylesByTool\` state | WIRED | All eight tools are rendered in the canonical order; per-tool opacity/width/color persistence test passes. |
-| Rust commands | retained scene consumers | typed store result → \`broadcast_scene\` → frontend snapshot | WIRED | Main command handlers broadcast accepted and no-op results; Rust tests pass. |
-| shape property popover | \`fillColor\` / \`fillOpacity\` | expected control events → style update | NOT_WIRED | No controls or event handlers exist for these two fields in \`App.tsx\`; this is the DRAW-04 blocker. |
-| text pointer/draft | committed text renderer | place → draft update → Enter commit → scene \`fillText\` | WIRED (runtime unverified) | All source connections exist and pure transition tests pass; native text flow was not reached. |
-| eraser hover/click | topmost scene item removal | \`findTopmostHit\` → \`erase_scene_item\` → snapshot broadcast | WIRED (runtime unverified) | Reverse-order hit testing and single-item store removal are implemented/tested; native gesture evidence is missing. |
+|---|---|---|---|---|
+| `OverlaySurface` | `SceneStore` | canonical samples → transient item → `commit_scene_item` → snapshot/event | WIRED; runtime unverified | App and Rust command/event paths are present; native pointer-up is not proven. |
+| `TOOL_ORDER` | active styles | toolbar `data-tool` → `activeTool` → `stylesByTool[activeTool]` | WIRED; runtime unverified | Source and component tests pass; native tool selection did not complete. |
+| shape controls | committed shape style | controlled inputs → `onUpdateStyle` → gesture style snapshot | WIRED; runtime unverified | The previous missing `fillColor`/`fillOpacity` link now exists in `AnnotationToolbar.tsx` and `App.tsx`; native commit is not reached. |
+| text editor | retained text | pointer placement → textarea → keyboard transition → `commit_scene_item` → `fillText` | WIRED; runtime unverified | Source and pure renderer/transition tests pass; native focus/IME is absent. |
+| eraser hover/click | one-item native removal | canonical hit-test → `erase_scene_item(id)` → full snapshot broadcast | WIRED; runtime unverified | Reverse hit-test and Rust exact-one removal are tested; native hover/click is absent. |
+| Rust validator | retained scene | typed normalization/validation → `SceneStore` mutation | WIRED | Invalid payloads reject without mutation; duplicates are idempotent. |
+| ROADMAP goal | MVP eligibility | exact goal → `user-story.validate` | WIRED | Validator returned `true`. |
+| validation rows | final sign-off | commands/platform rows → status fields | WIRED | Ledger status matches observed evidence and remains incomplete. |
 
-### Data-Flow Trace (Level 4)
+## Data-Flow Trace (Level 4)
 
-| Artifact | Data Variable | Source | Produces Real Data | Status |
-| --- | --- | --- | --- | --- |
-| \`OverlaySurface.tsx\` | \`scene\` | \`get_scene_snapshot\` plus \`scene-changed\` events from Rust \`SceneStore\` | Yes | ✓ FLOWING |
-| \`OverlaySurface.tsx\` | \`transientSceneItem\` | Live pointer samples transformed into canonical coordinates | Yes during a gesture | ✓ FLOWING (native runtime unverified) |
-| \`App.tsx\` | \`stylesByTool\` | React state and toolbar controls | Yes for color/opacity/width/fill mode/text size | ⚠️ STATIC for shape fill color/opacity: no user input path |
-| \`overlay_registry.rs\` | retained \`SceneSnapshot\` | Tauri invoke payload → typed parse/validation/store | Yes | ✓ FLOWING |
+| Artifact | Data variable | Source | Produces real data | Status |
+|---|---|---|---|---|
+| `App.tsx` / `OverlaySurface.tsx` | `scene` | `get_scene_snapshot` plus `scene-changed` emitted by Rust | Yes | ✓ FLOWING |
+| `OverlaySurface.tsx` | `transientSceneItem` | Live pointer samples transformed through `viewportToCanonical` | Yes during gesture | ✓ FLOWING; native unverified |
+| `AnnotationToolbar.tsx` / `App.tsx` | `stylesByTool` | User-controlled color/opacity/width/fill/text-size inputs | Yes | ✓ FLOWING |
+| `src-tauri/src/overlay_registry.rs` | `SceneSnapshot.items` | Validated Tauri payloads | Yes | ✓ FLOWING |
+| `ModeBadge`/toolbar/editor | scene data | UI state only, marked scene-excluded | No scene pollution | ✓ EXCLUDED |
 
-### Behavioral Spot-Checks
+## Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
-| --- | --- | --- | --- |
-| Frontend unit/component behavior | \`pnpm test\` | 6 files passed, 46 tests passed, 0 failed | ✓ PASS |
-| Rust native store/validation behavior | \`cargo test --manifest-path src-tauri/Cargo.toml\` | 42 tests passed, 0 failed; 18 existing dead-code warnings | ✓ PASS |
-| TypeScript and production build | \`pnpm build\` | \`tsc --noEmit && vite build\` completed; 30 modules transformed | ✓ PASS |
-| Native Phase 3 E2E | \`pnpm exec wdio run wdio.conf.ts --suite phase3-tools\` | macOS WebKit: 2 passing, 1 failing; drawing test fails at \`dragCanvas\` pointer-up assertion (\`core-annotation-tools.e2e.ts:114\`); cleanup also warns \`sessionId is required\` | ✗ FAIL |
-| Plan validation traceability | Phase 3 validation command checking test file, DRAW-01..06, suite, and coverage audit | All required references found | ✓ PASS |
-| Conventional probes | \`find scripts -path '*/tests/probe-*.sh' -type f\` | No probes discovered | ? SKIP — no probe declared/found |
+|---|---|---|---|
+| TypeScript correctness | `pnpm typecheck` | Exit 0 (`tsc --noEmit`) | ✓ PASS |
+| Frontend regression suite | `pnpm exec vitest run` | 7 files / 51 tests passed | ✓ PASS |
+| Native Rust compile | `cargo check --manifest-path src-tauri/Cargo.toml` | Exit 0; 45 pre-existing unused/dead-code warnings | ✓ PASS |
+| Debug desktop build | `pnpm exec tauri build --debug` | Exit 0; built `src-tauri/target/debug/nabrush` | ✓ PASS |
+| MVP goal validator | `node ... gsd-tools.cjs query user-story.validate ... --pick valid` | `true` | ✓ PASS |
+| Decision coverage | `check.decision-coverage-verify` | 17/17 honored; non-blocking gate | ✓ PASS |
+| Phase 3 native gesture flow | `pnpm exec wdio run wdio.conf.ts --suite phase3-tools` | macOS WebKit failed before full gesture coverage; window switching reports `window not found` | ✗ FAIL / gap |
+| Short lifecycle | `pnpm exec wdio run wdio.conf.ts --suite short-lifecycle` | Exit 1; macOS WebKit 3 passing / 4 failing; repeated window-not-found during overlay/settings switching; recovery badge not reached | ✗ FAIL / gap |
+| Phase 1 matrix | `pnpm exec wdio run wdio.conf.ts --suite phase1-matrix` | Exit 1; same macOS WebKit window lifecycle failures | ✗ FAIL / gap |
 
-### Probe Execution
+## Probe Execution
 
-No conventional or phase-declared probe scripts were found. Probe execution is therefore not applicable; the native WebDriver suite above was run independently and is the relevant executable smoke check.
+No conventional or phase-declared `scripts/*/tests/probe-*.sh` probes were found. Probe execution is not applicable.
 
-### Requirements Coverage
+## Advisory (New Scope, Unevidenced)
 
-| Requirement | Source Plan | Description | Status | Evidence |
-| --- | --- | --- | --- | --- |
-| DRAW-01 | 03-01, 03-04 | Configurable freehand pen stroke | NEEDS HUMAN | Style/state/renderer/bridge and unit tests pass; native pointer commit is unverified. |
-| DRAW-02 | 03-01, 03-04 | Semi-transparent highlighter stroke | NEEDS HUMAN | Highlighter default opacity/width and renderer path exist; native gesture behavior is unverified. |
-| DRAW-03 | 03-02, 03-04 | Configurable lines and arrows | NEEDS HUMAN | Geometry/arrowhead/preview/commit source paths and tests exist; native pointer behavior is unverified. |
-| DRAW-04 | 03-02, 03-04 | Configurable rectangle/ellipse stroke and fill/opacity | BLOCKED | Shape model and renderer support fill settings, but the toolbar does not expose fill color or fill opacity controls. |
-| DRAW-05 | 03-03, 03-04 | Text create/edit/commit/cancel with color and size | NEEDS HUMAN | Draft transitions, keyboard wiring, text sizing, and unit tests exist; native text and IME behavior is unverified. |
-| DRAW-06 | 03-03, 03-04 | Erase one selected annotation only | NEEDS HUMAN | Topmost hit-test and single-item Rust removal are tested; native hover/click-only behavior is unverified. |
+None. No new-scope anti-pattern finding required advisory-only treatment during this re-verification.
 
-All six IDs are mapped to Phase 3 in \`REQUIREMENTS.md\`; no additional Phase 3 requirement was found orphaned from the plans.
+## Requirements Coverage
 
-### Test Quality Audit
+Every Phase 03 PLAN declares at least one of the six requested IDs: Plans 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, and 03-08 declare DRAW-01 through DRAW-06; 03-05 declares DRAW-04. All six IDs are defined in `.planning/REQUIREMENTS.md` and map to Phase 3. No Phase 3 requirement is orphaned from plan frontmatter.
 
-The frontend and Rust tests contain no skipped or todo tests and no circular test candidates were found. \`annotation.test.ts\` has 7 active tests, \`overlay-surface.test.tsx\` has 19 active tests, and the Rust registry has 11 inline tests. These give useful pure-function/store evidence but do not substitute for native pointer/IME/rendering behavior. The E2E suite has 3 active tests with 2 passing and 1 failing; it does not assert the missing shape fill-color/fill-opacity controls.
+| Requirement | Source plans | Status | Evidence |
+|---|---|---|---|
+| DRAW-01 | 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, 03-08 | NEEDS HUMAN / BLOCKED BY NATIVE EVIDENCE | Pen path, style controls, canonical renderer, native validation, and tests exist; native gesture commit is not proven. |
+| DRAW-02 | 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, 03-08 | NEEDS HUMAN / BLOCKED BY NATIVE EVIDENCE | Highlighter style and renderer path exist; native pointer behavior is not proven. |
+| DRAW-03 | 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, 03-08 | NEEDS HUMAN / BLOCKED BY NATIVE EVIDENCE | Line/arrow geometry, threshold, arrowhead, validator, and unit tests pass; native drag commit is not proven. |
+| DRAW-04 | 03-01, 03-02, 03-03, 03-04, 03-05, 03-06, 03-07, 03-08 | NEEDS HUMAN / BLOCKED BY NATIVE EVIDENCE | Shape controls and independent state are now implemented and tested; native shape commit/fill evidence is not proven. |
+| DRAW-05 | 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, 03-08 | NEEDS HUMAN / BLOCKED BY NATIVE EVIDENCE | Draft/IME/Canvas paths are implemented and unit-tested; native focus and keyboard flow are not proven. |
+| DRAW-06 | 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, 03-08 | NEEDS HUMAN / BLOCKED BY NATIVE EVIDENCE | Topmost hit testing and exact-one Rust removal are tested; native hover/click/drag behavior is not proven. |
 
-### Anti-Patterns Found
+## Test Quality Audit
+
+| Test file | Linked requirements | Active | Skipped | Circular | Assertion level | Verdict |
+|---|---|---:|---:|---:|---|---|
+| `src/components/overlay-surface.test.tsx` | DRAW-01..06 | 21 | 0 | 0 | Value/behavioral helpers | ✓ PASS |
+| `src/state/annotation.test.ts` | DRAW-01..06 | 7 | 0 | 0 | Value/transition/hit-test | ✓ PASS |
+| `src/components/annotation-toolbar.test.tsx` | DRAW-04 | 2 | 0 | 0 | Value/DOM marker | ✓ PASS |
+| `src-tauri/src/overlay_registry.rs` inline tests | DRAW-01..06 | recorded 42 cargo tests total | 0 | 0 | Value/store invariants | ✓ PASS |
+| `tests/e2e/core-annotation-tools.e2e.ts` | DRAW-01..06 | 3 | 0 | 0 | End-to-end behavioral | ⚠️ 2 pass / native flow not reached |
+
+No disabled requirement-linked tests or circular expected-value writers were found. The E2E suite has real behavioral assertions; its failed native lifecycle is not converted into a pass.
+
+## Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
-| --- | --- | --- | --- | --- |
-| — | — | No unreferenced \`TBD\`, \`FIXME\`, \`XXX\`, \`TODO\`, \`HACK\`, placeholder, or console-only implementation markers in phase key files | ℹ️ Info | No debt-marker or obvious stub blocker found. |
-| \`src-tauri\` build output | — | 18 pre-existing dead-code warnings | ℹ️ Info | Warnings concern unused native/controller seams; they do not show a Phase 3 stub or failure. |
+|---|---:|---|---|---|
+| — | — | No implementation TODO/FIXME/XXX/HACK/placeholder, empty implementation, skipped-test, or circular-test pattern found in the Phase 3 implementation/test files | Info | No stub blocker found. |
 
-### Human Verification Required
+## Human Verification Required
 
-The following remain required even after the code blockers are addressed:
+The phase is blocked before human sign-off can certify the goal. After the native gap is resolved, verify:
 
-1. Correct the MVP goal with \`/gsd mvp-phase 3\`, then validate the user-story outcome.
-2. On macOS, reproduce the full native pointer flow and resolve the current first-draw pointer-up failure.
-3. On Windows, run the equivalent native smoke suite; no Windows evidence exists in this verification.
-4. Verify realtime previews, canonical coordinates, short-drag/Escape/outside cancellation, thin defaults, arrowhead/fill visuals, text IME/Enter/Shift+Enter/Escape, eraser hover/topmost/click-only behavior, and mixed-display/DPR/rotation cases.
-5. After adding the missing shape controls, verify independent fill color and fill opacity for rectangles and ellipses.
+1. Run `phase3-tools` on macOS through a WebDriver/provider path that can switch to the overlay; confirm preview-before-up, exactly-one commits, shape fill snapshots, text lifecycle, topmost eraser, and click-through.
+2. Run the same native suite and manual matrix on Windows; do not infer Windows behavior from macOS.
+3. Re-run `short-lifecycle` and `phase1-matrix`, confirming overlay/settings switching and the recovery badge path.
+4. Manually inspect visual thin defaults, IME behavior, eraser hover/click-only behavior, and mixed-DPR/rotation/negative-origin rendering.
 
-### Gaps Summary
+## Gaps Summary
 
-The retained scene architecture, typed native store, tool state, renderer helpers, and pure automated tests are substantially implemented. The phase goal is not yet certifiable: DRAW-04 is observably incomplete because fill color and fill opacity are not user-configurable; MVP-mode verification cannot run against the current non-user-story goal; and the only available native run fails at the first drawing pointer-up commit while Windows is unavailable. The pending validation matrix also does not constitute completed evidence.
-
-Next action: add and test the missing shape fill controls, correct the MVP goal contract, then rerun native Phase 3 verification on macOS and Windows and update the validation matrix with the actual results.
+The codebase contains a substantive, wired annotation implementation and all six DRAW requirement paths. The previous missing shape fill controls and invalid MVP goal contract are fixed, and the validation ledger now accurately records evidence. The phase goal is still not achieved to the required evidence standard because macOS WebKit native runs fail during window lifecycle switching before gesture assertions, the lifecycle suites also fail, and no Windows host is available. This is a carried-forward blocking gap, not a claim that the source implementation is absent.
 
 ---
 
-_Verified: 2026-09-10T19:28:21Z_
+_Verified: 2026-09-11T02:31:36Z_
 _Verifier: the agent (gsd-verifier)_
