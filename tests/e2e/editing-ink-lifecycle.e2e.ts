@@ -579,5 +579,40 @@ describe("Phase 4 editing and ink lifecycle", () => {
       timeout: 10_000,
       timeoutMsg: `[${hostLabel()}] Outside click did not commit exactly one text item without opening another draft`,
     });
+
+    const composingPoint = await canvasPoint(0.62, 0.34);
+    await drawToolGesture("text", composingPoint, composingPoint);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await browser.execute(() => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME text editor is unavailable");
+      field.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "đang" }));
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!setValue) throw new Error("Textarea value setter is unavailable");
+      setValue.call(field, "đang nhập");
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertCompositionText", data: "đang nhập" }));
+    });
+    await drawToolGesture("text", await canvasPoint(0.84, 0.72), await canvasPoint(0.84, 0.72));
+    expect(await editor.isExisting()).toBe(true);
+
+    const finalComposedText = "ngôn ngữ cuối cùng";
+    await browser.execute((text) => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME text editor disappeared before composition-end");
+      field.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: text }));
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!setValue) throw new Error("Textarea value setter is unavailable");
+      setValue.call(field, text);
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+    }, finalComposedText);
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] Deferred outside-click commit did not finish after IME composition-end`,
+    });
+    await browser.waitUntil(async () => (await nativeSnapshot()).items.some((item) => item.kind === "text" && item.text === finalComposedText), {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] IME composition-end text was not committed in full`,
+    });
   });
 });

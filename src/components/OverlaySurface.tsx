@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  CompositionEvent as ReactCompositionEvent,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -619,6 +620,11 @@ export function OverlaySurface({
   const textDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
   const textShiftRef = useRef(false);
   const textDraftCommitHandledRef = useRef(false);
+  const textCompositionRef = useRef(false);
+  const deferredOutsideTextCommitRef = useRef(false);
+  const compositionCommitCancelRef = useRef<(() => void) | null>(null);
+  const textDraftRef = useRef(textDraft);
+  const latestTextDraftValueRef = useRef(textDraft?.value ?? "");
   const sceneCommitInFlightRef = useRef(false);
   const pendingSceneCommitRef = useRef<SceneItem | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
@@ -632,6 +638,8 @@ export function OverlaySurface({
   const [pendingSceneItem, setPendingSceneItem] = useState<SceneItem | null>(null);
   const [commitSaving, setCommitSaving] = useState(false);
   const [commitFeedback, setCommitFeedback] = useState<{ kind: "error" | "notice"; message: string } | null>(null);
+  textDraftRef.current = textDraft;
+  latestTextDraftValueRef.current = textDraft?.value ?? "";
 
   const measureTextForHitTest = useCallback((line: string, style: AnnotationStyle): number => {
     const context = canvasRef.current?.getContext("2d");
@@ -758,6 +766,8 @@ export function OverlaySurface({
     cancelGesture();
     if ((mode !== "VisibleInteractive" || activeTool !== "text")
       && !textDraftCommitHandledRef.current
+      && !textCompositionRef.current
+      && !deferredOutsideTextCommitRef.current
       && pendingSceneCommitRef.current?.kind !== "text") onCancelTextDraft();
   }, [activeTool, cancelGesture, mode, onCancelTextDraft]);
 
@@ -772,6 +782,7 @@ export function OverlaySurface({
     const handleBlur = () => {
       cancelGesture();
       textShiftRef.current = false;
+      if (textCompositionRef.current || deferredOutsideTextCommitRef.current) return;
       if (!textDraftCommitHandledRef.current && pendingSceneCommitRef.current?.kind !== "text") {
         onCancelTextDraft();
       }
@@ -1113,11 +1124,13 @@ export function OverlaySurface({
 
   const handleTextBlur = () => {
     textShiftRef.current = false;
-    if (textDraftCommitHandledRef.current || pendingSceneCommitRef.current?.kind === "text") return;
+    if (textCompositionRef.current || deferredOutsideTextCommitRef.current
+      || textDraftCommitHandledRef.current || pendingSceneCommitRef.current?.kind === "text") return;
     onCancelTextDraft();
   };
 
   const handleTextDraftChange = (value: string) => {
+    latestTextDraftValueRef.current = value;
     textDraftCommitHandledRef.current = false;
     if (pendingSceneCommitRef.current?.kind === "text" && !sceneCommitInFlightRef.current) {
       pendingSceneCommitRef.current = null;
@@ -1149,6 +1162,38 @@ export function OverlaySurface({
     submitSceneItem(item);
   }, [onCancelTextDraft, submitSceneItem]);
 
+  const handleTextCompositionStart = () => {
+    textCompositionRef.current = true;
+  };
+
+  const handleTextCompositionEnd = (event: ReactCompositionEvent<HTMLTextAreaElement>) => {
+    textCompositionRef.current = false;
+    latestTextDraftValueRef.current = event.currentTarget.value;
+    if (!deferredOutsideTextCommitRef.current) return;
+    compositionCommitCancelRef.current?.();
+    const finishDeferredCommit = () => {
+      compositionCommitCancelRef.current = null;
+      if (!deferredOutsideTextCommitRef.current) return;
+      deferredOutsideTextCommitRef.current = false;
+      const draft = textDraftRef.current;
+      if (!draft) return;
+      const finalValue = textEditorRef.current?.value ?? latestTextDraftValueRef.current;
+      handleTextDraftChange(finalValue);
+      commitTextDraft({ ...draft, value: finalValue });
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+      const frame = window.requestAnimationFrame(finishDeferredCommit);
+      compositionCommitCancelRef.current = () => window.cancelAnimationFrame(frame);
+    } else {
+      const timer = window.setTimeout(finishDeferredCommit, 0);
+      compositionCommitCancelRef.current = () => window.clearTimeout(timer);
+    }
+  };
+
+  useEffect(() => () => {
+    compositionCommitCancelRef.current?.();
+  }, []);
+
   useEffect(() => {
     if (!textDraft) return;
     const handleOutsidePointer = (event: Event) => {
@@ -1158,6 +1203,10 @@ export function OverlaySurface({
         // The same canvas click must commit this draft, not place another one.
         suppressTextClickRef.current = true;
         suppressNextTextDraftRef.current = true;
+      }
+      if (textCompositionRef.current || deferredOutsideTextCommitRef.current) {
+        deferredOutsideTextCommitRef.current = true;
+        return;
       }
       commitTextDraft(textDraft);
     };
@@ -1237,6 +1286,8 @@ export function OverlaySurface({
           onChange={(event) => handleTextDraftChange(event.target.value)}
           onKeyDown={handleTextKeyDown}
           onKeyUp={handleTextKeyUp}
+          onCompositionStart={handleTextCompositionStart}
+          onCompositionEnd={handleTextCompositionEnd}
           onBlur={handleTextBlur}
           rows={1}
           style={{ left: draftPosition.x, top: draftPosition.y, color: textDraft.style.color, fontSize: textDraft.style.textSize, ...draftEditorStyle }}
