@@ -17,6 +17,11 @@ async function dispatch(action: "Show" | "Esc") {
   return invoke<string>("test_dispatch_action", { action });
 }
 
+async function pressHistoryShortcut(key: "z" | "y") {
+  await browser.keys([process.platform === "darwin" ? "Meta" : "Control", key]);
+  await browser.keys("NULL");
+}
+
 async function waitForMode(expected: string) {
   await browser.waitUntil(async () => await browser.execute(
     () => document.querySelector("main")?.getAttribute("data-mode") ?? "",
@@ -354,5 +359,97 @@ describe("Phase 4 editing and ink lifecycle", () => {
       timeout: 5_000,
       timeoutMsg: `[${hostLabel()}] One or more drawable annotation families remained after their native deadlines`,
     });
+  });
+
+  it("undoes erase and clear-all in order, supports shortcuts, and drops a stale redo branch", async () => {
+    await selectVisibleGeneratedOverlay("history toolbar controls");
+    await waitForMode("VisibleInteractive");
+    const undoButton = await browser.$('[data-history-undo="true"]');
+    const redoButton = await browser.$('[data-history-redo="true"]');
+    const clearButton = await browser.$('[data-history-clear="true"]');
+    await browser.waitUntil(async () => await undoButton.isExisting(), {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] History controls did not mount in the selected overlay: ${JSON.stringify(await browser.execute(() => ({
+        label: document.querySelector("main")?.getAttribute("data-window-label") ?? null,
+        mode: document.querySelector("main")?.getAttribute("data-mode") ?? null,
+        toolbarMounted: document.querySelector('[data-annotation-toolbar="true"]') !== null,
+      })))}`,
+    });
+    const initial = await nativeSnapshot();
+    expect(initial.items).toHaveLength(0);
+    expect(await undoButton.isEnabled()).toBe(initial.canUndo ?? false);
+    expect(await redoButton.isEnabled()).toBe(initial.canRedo ?? false);
+    expect(await clearButton.isEnabled()).toBe(false);
+
+    await (await browser.$('[data-tool="pen"]')).click();
+    await drawPen(await canvasPoint(0.2, 0.2), await canvasPoint(0.3, 0.25), initial.items.length);
+    const firstSnapshot = await nativeSnapshot();
+    const first = firstSnapshot.items.at(-1);
+    if (!first) throw new Error(`[${hostLabel()}] First history tracer mark was not committed`);
+    await drawPen(await canvasPoint(0.65, 0.2), await canvasPoint(0.75, 0.25), firstSnapshot.items.length);
+    const beforeErase = await nativeSnapshot();
+    const second = beforeErase.items.at(-1);
+    if (!second) throw new Error(`[${hostLabel()}] Second history tracer mark was not committed`);
+    expect(beforeErase.canUndo).toBe(true);
+    expect(beforeErase.canRedo).toBe(false);
+
+    await invoke("erase_scene_item", { id: first.id });
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.map((item) => item.id).join(",") === second.id;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Erasing one item did not create the expected canonical scene`,
+    });
+    await browser.waitUntil(async () => await undoButton.isEnabled() && !(await redoButton.isEnabled()), {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Toolbar did not expose Undo-only availability after erase`,
+    });
+
+    await pressHistoryShortcut("z");
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.map((item) => item.id).join(",") === beforeErase.items.map((item) => item.id).join(",")
+        && snapshot.canRedo === true;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Cmd/Ctrl+Z did not restore the exact pre-erase snapshot`,
+    });
+    await pressHistoryShortcut("y");
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.map((item) => item.id).join(",") === second.id && snapshot.canRedo === false;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Cmd/Ctrl+Y did not redo the erase`,
+    });
+
+    await clearButton.click();
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.length === 0 && snapshot.canUndo === true;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Clear All did not commit one undoable scene operation`,
+    });
+    await undoButton.click();
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.map((item) => item.id).join(",") === second.id && snapshot.canRedo === true;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Undo Clear All did not restore the exact prior item order`,
+    });
+
+    const beforeBranchMutation = await nativeSnapshot();
+    await drawPen(await canvasPoint(0.4, 0.7), await canvasPoint(0.55, 0.76), beforeBranchMutation.items.length);
+    const branched = await nativeSnapshot();
+    expect(branched.items).toHaveLength(beforeBranchMutation.items.length + 1);
+    expect(branched.canUndo).toBe(true);
+    expect(branched.canRedo).toBe(false);
+    expect(await redoButton.isEnabled()).toBe(false);
+    const ignoredRedo = await invoke<SceneSnapshot>("redo_scene");
+    expect(ignoredRedo.items).toEqual(branched.items);
+    expect(ignoredRedo.canRedo).toBe(false);
   });
 });

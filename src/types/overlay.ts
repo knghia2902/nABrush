@@ -133,7 +133,25 @@ export type TextDraft = Readonly<{
 }>;
 
 export type SceneItem = StrokeSceneItem | ShapeSceneItem | TextSceneItem;
-export type SceneSnapshot = { sceneId: string; items: readonly SceneItem[] };
+export type SceneSnapshot = {
+  sceneId: string;
+  items: readonly SceneItem[];
+  canUndo?: boolean;
+  canRedo?: boolean;
+};
+export type HistoryAction = "undo" | "redo";
+
+export function historyActionForShortcut(
+  event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">,
+  isMac: boolean,
+): HistoryAction | null {
+  if (event.altKey || event.shiftKey) return null;
+  if (isMac ? !event.metaKey : !event.ctrlKey) return null;
+  const key = event.key.toLowerCase();
+  if (key === "z") return "undo";
+  if (key === "y") return "redo";
+  return null;
+}
 export type SceneEventPayload = SceneSnapshot & {
   /** The viewport that originated a local scene commit, when supplied by native. */
   displayId?: string;

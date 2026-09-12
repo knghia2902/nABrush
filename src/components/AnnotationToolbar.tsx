@@ -91,12 +91,18 @@ export type AnnotationToolbarProps = {
   toolStyle: AnnotationStyle;
   lifecycleMode: AnnotationLifecycleMode;
   vanishingDurationSeconds: number;
+  canUndo: boolean;
+  canRedo: boolean;
+  canClear: boolean;
   propertyOpen: boolean;
   onSelectTool: (tool: AnnotationTool) => void;
   onToggleProperties: () => void;
   onUpdateStyle: (patch: Partial<AnnotationStyle>) => void;
   onToggleLifecycleMode: () => void;
   onSetVanishingDuration: (durationSeconds: number) => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onClearAll: () => void;
 };
 
 type DragState = { pointerId: number; offsetX: number; offsetY: number };
@@ -111,12 +117,18 @@ export function AnnotationToolbar({
   toolStyle,
   lifecycleMode,
   vanishingDurationSeconds,
+  canUndo,
+  canRedo,
+  canClear,
   propertyOpen,
   onSelectTool,
   onToggleProperties,
   onUpdateStyle,
   onToggleLifecycleMode,
   onSetVanishingDuration,
+  onUndo,
+  onRedo,
+  onClearAll,
 }: AnnotationToolbarProps) {
   const toolbarRef = useRef<HTMLElement>(null);
   const handleRef = useRef<HTMLButtonElement>(null);
@@ -298,6 +310,43 @@ export function AnnotationToolbar({
           </button>
         </div>
         <div className="annotation-toolbar__tools" data-scene-excluded="true">
+          <div className="annotation-toolbar__history" aria-label="Scene history" data-scene-excluded="true">
+            <button
+              type="button"
+              aria-label="Undo"
+              title="Undo (⌘/Ctrl+Z)"
+              aria-keyshortcuts="Meta+Z Control+Z"
+              data-history-undo="true"
+              data-scene-excluded="true"
+              disabled={!canUndo}
+              onClick={onUndo}
+            >
+              <span aria-hidden="true">↶</span><span className="annotation-toolbar__tool-label">Undo</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Redo"
+              title="Redo (⌘/Ctrl+Y)"
+              aria-keyshortcuts="Meta+Y Control+Y"
+              data-history-redo="true"
+              data-scene-excluded="true"
+              disabled={!canRedo}
+              onClick={onRedo}
+            >
+              <span aria-hidden="true">↷</span><span className="annotation-toolbar__tool-label">Redo</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Clear all annotations"
+              title="Clear all annotations"
+              data-history-clear="true"
+              data-scene-excluded="true"
+              disabled={!canClear}
+              onClick={onClearAll}
+            >
+              <span aria-hidden="true">⌫</span><span className="annotation-toolbar__tool-label">Clear all</span>
+            </button>
+          </div>
           {TOOL_ORDER.map((tool) => (
             <button
               key={tool}

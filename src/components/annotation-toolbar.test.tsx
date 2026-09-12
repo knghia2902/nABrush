@@ -25,6 +25,7 @@ function renderToolbar(
   toolStyle: AnnotationStyle = baseStyle,
   lifecycleMode: "persistent" | "vanishing" = "persistent",
   vanishingDurationSeconds = 3,
+  history = { canUndo: false, canRedo: false, canClear: false },
 ): string {
   return renderToStaticMarkup(
     <AnnotationToolbar
@@ -32,12 +33,16 @@ function renderToolbar(
       toolStyle={toolStyle}
       lifecycleMode={lifecycleMode}
       vanishingDurationSeconds={vanishingDurationSeconds}
+      {...history}
       propertyOpen
       onSelectTool={() => undefined}
       onToggleProperties={() => undefined}
       onUpdateStyle={() => undefined}
       onToggleLifecycleMode={() => undefined}
       onSetVanishingDuration={() => undefined}
+      onUndo={() => undefined}
+      onRedo={() => undefined}
+      onClearAll={() => undefined}
     />,
   );
 }
@@ -108,6 +113,31 @@ describe("AnnotationToolbar", () => {
     expect(markup).not.toContain('data-style-control="fill"');
     expect(markup).not.toContain('data-style-control="fillColor"');
     expect(markup).not.toContain('data-style-control="fillOpacity"');
+  });
+
+  it("exposes scene-excluded Undo, Redo, and undoable Clear All controls with matching availability", () => {
+    const empty = renderToolbar("pen");
+    expect(empty).toContain('aria-label="Undo"');
+    expect(empty).toContain('data-history-undo="true"');
+    expect(empty).toContain('aria-keyshortcuts="Meta+Z Control+Z"');
+    expect(empty).toContain('data-history-redo="true"');
+    expect(empty).toContain('aria-keyshortcuts="Meta+Y Control+Y"');
+    expect(empty).toContain('aria-label="Clear all annotations"');
+    expect(empty).toContain('data-history-clear="true"');
+    expect(empty).toMatch(/data-history-undo="true"[^>]*disabled=""/);
+    expect(empty).toMatch(/data-history-redo="true"[^>]*disabled=""/);
+    expect(empty).toMatch(/data-history-clear="true"[^>]*disabled=""/);
+
+    const available = renderToolbar("pen", baseStyle, "persistent", 3, {
+      canUndo: true,
+      canRedo: true,
+      canClear: true,
+    });
+    expect(available).toMatch(/data-history-undo="true"(?![^>]*disabled)/);
+    expect(available).toMatch(/data-history-redo="true"(?![^>]*disabled)/);
+    expect(available).toMatch(/data-history-clear="true"(?![^>]*disabled)/);
+    expect(available.indexOf('data-history-undo="true"')).toBeLessThan(available.indexOf('data-tool="pen"'));
+    expect(available).toContain('data-scene-excluded="true"');
   });
 
   it("always shows a scene-excluded lifecycle toggle and only shows durations for Vanishing", () => {

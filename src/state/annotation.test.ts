@@ -20,7 +20,7 @@ import {
   updateToolStyle,
 } from "./annotation";
 import type { AnnotationStyle, SceneItem, TextDraft } from "../types/overlay";
-import { DEFAULT_VANISHING_DURATION_SECONDS, MAX_VANISHING_DURATION_SECONDS, MIN_VANISHING_DURATION_SECONDS } from "../types/overlay";
+import { DEFAULT_VANISHING_DURATION_SECONDS, historyActionForShortcut, MAX_VANISHING_DURATION_SECONDS, MIN_VANISHING_DURATION_SECONDS } from "../types/overlay";
 
 const textStyle: AnnotationStyle = {
   color: "#334155",
@@ -49,6 +49,17 @@ function ellipse(id: string): SceneItem {
 }
 
 describe("annotation tool state", () => {
+  it("normalizes undo and redo shortcuts for macOS and Windows without consuming shifted input keys", () => {
+    expect(historyActionForShortcut({ key: "z", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBe("undo");
+    expect(historyActionForShortcut({ key: "y", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBe("redo");
+    expect(historyActionForShortcut({ key: "Z", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, false)).toBe("undo");
+    expect(historyActionForShortcut({ key: "Y", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, false)).toBe("redo");
+    expect(historyActionForShortcut({ key: "Enter", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false }, true)).toBeNull();
+    expect(historyActionForShortcut({ key: "Escape", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBeNull();
+    expect(historyActionForShortcut({ key: "z", metaKey: true, ctrlKey: false, shiftKey: false, altKey: true }, true)).toBeNull();
+    expect(historyActionForShortcut({ key: "z", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }, true)).toBeNull();
+  });
+
   it("initializes every tool in the locked order with thin outline defaults", () => {
     const state = createInitialAnnotationState();
 

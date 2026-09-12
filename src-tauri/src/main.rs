@@ -247,6 +247,22 @@ fn get_scene_snapshot(state: tauri::State<'_, Mutex<SceneStore>>) -> SceneSnapsh
     state.lock().expect("scene mutex poisoned").snapshot()
 }
 
+fn broadcast_scene_if_changed(
+    app: &tauri::AppHandle,
+    registry: &tauri::State<'_, Mutex<OverlayRegistry>>,
+    before: &SceneSnapshot,
+    after: &SceneSnapshot,
+) -> Result<(), String> {
+    if before != after {
+        registry
+            .lock()
+            .expect("registry mutex poisoned")
+            .broadcast_scene(app, after)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OverlayBootstrapState {
@@ -276,16 +292,13 @@ fn commit_scene_item(
     state: tauri::State<'_, Mutex<SceneStore>>,
     registry: tauri::State<'_, Mutex<OverlayRegistry>>,
 ) -> Result<SceneSnapshot, String> {
-    let snapshot = state
-        .lock()
-        .expect("scene mutex poisoned")
-        .commit_scene_item(item)
-        .map_err(|error| error.to_string())?;
-    registry
-        .lock()
-        .expect("registry mutex poisoned")
-        .broadcast_scene(&app, &snapshot)
-        .map_err(|error| error.to_string())?;
+    let (before, snapshot) = {
+        let mut scene = state.lock().expect("scene mutex poisoned");
+        let before = scene.snapshot();
+        let snapshot = scene.commit_scene_item(item).map_err(|error| error.to_string())?;
+        (before, snapshot)
+    };
+    broadcast_scene_if_changed(&app, &registry, &before, &snapshot)?;
     Ok(snapshot)
 }
 
@@ -296,16 +309,13 @@ fn erase_scene_item(
     state: tauri::State<'_, Mutex<SceneStore>>,
     registry: tauri::State<'_, Mutex<OverlayRegistry>>,
 ) -> Result<SceneSnapshot, String> {
-    let snapshot = state
-        .lock()
-        .expect("scene mutex poisoned")
-        .erase_scene_item(&id)
-        .map_err(|error| error.to_string())?;
-    registry
-        .lock()
-        .expect("registry mutex poisoned")
-        .broadcast_scene(&app, &snapshot)
-        .map_err(|error| error.to_string())?;
+    let (before, snapshot) = {
+        let mut scene = state.lock().expect("scene mutex poisoned");
+        let before = scene.snapshot();
+        let snapshot = scene.erase_scene_item(&id).map_err(|error| error.to_string())?;
+        (before, snapshot)
+    };
+    broadcast_scene_if_changed(&app, &registry, &before, &snapshot)?;
     Ok(snapshot)
 }
 
@@ -317,16 +327,69 @@ fn move_text_scene_item(
     state: tauri::State<'_, Mutex<SceneStore>>,
     registry: tauri::State<'_, Mutex<OverlayRegistry>>,
 ) -> Result<SceneSnapshot, String> {
-    let snapshot = state
-        .lock()
-        .expect("scene mutex poisoned")
-        .move_text_scene_item(&id, anchor)
-        .map_err(|error| error.to_string())?;
-    registry
-        .lock()
-        .expect("registry mutex poisoned")
-        .broadcast_scene(&app, &snapshot)
-        .map_err(|error| error.to_string())?;
+    let (before, snapshot) = {
+        let mut scene = state.lock().expect("scene mutex poisoned");
+        let before = scene.snapshot();
+        let snapshot = scene
+            .move_text_scene_item(&id, anchor)
+            .map_err(|error| error.to_string())?;
+        (before, snapshot)
+    };
+    broadcast_scene_if_changed(&app, &registry, &before, &snapshot)?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
+fn undo_scene(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SceneStore>>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<SceneSnapshot, String> {
+    let (before, snapshot) = {
+        let mut scene = state.lock().expect("scene mutex poisoned");
+        let before = scene.snapshot();
+        let snapshot = scene
+            .undo_scene()
+            .map_err(|error| error.to_string())?
+            .unwrap_or_else(|| scene.snapshot());
+        (before, snapshot)
+    };
+    broadcast_scene_if_changed(&app, &registry, &before, &snapshot)?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
+fn redo_scene(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SceneStore>>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<SceneSnapshot, String> {
+    let (before, snapshot) = {
+        let mut scene = state.lock().expect("scene mutex poisoned");
+        let before = scene.snapshot();
+        let snapshot = scene
+            .redo_scene()
+            .map_err(|error| error.to_string())?
+            .unwrap_or_else(|| scene.snapshot());
+        (before, snapshot)
+    };
+    broadcast_scene_if_changed(&app, &registry, &before, &snapshot)?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
+fn clear_scene(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SceneStore>>,
+    registry: tauri::State<'_, Mutex<OverlayRegistry>>,
+) -> Result<SceneSnapshot, String> {
+    let (before, snapshot) = {
+        let mut scene = state.lock().expect("scene mutex poisoned");
+        let before = scene.snapshot();
+        let snapshot = scene.clear_scene().unwrap_or_else(|| scene.snapshot());
+        (before, snapshot)
+    };
+    broadcast_scene_if_changed(&app, &registry, &before, &snapshot)?;
     Ok(snapshot)
 }
 
@@ -354,6 +417,9 @@ fn main() {
             commit_scene_item,
             erase_scene_item,
             move_text_scene_item,
+            undo_scene,
+            redo_scene,
+            clear_scene,
             test_dispatch_action,
             test_show_settings,
             test_request_close_settings,

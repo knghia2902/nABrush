@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -16,7 +16,7 @@ import {
   textDraftTransition,
   updateToolStyle,
 } from "./state/annotation";
-import { DEFAULT_PEN_STYLE, normalizeDisplayViewport } from "./types/overlay";
+import { DEFAULT_PEN_STYLE, historyActionForShortcut, normalizeDisplayViewport } from "./types/overlay";
 import type { AnnotationLifecycleMode, AnnotationLifecycleSnapshot, AnnotationStyle, AnnotationTool, DisplayViewport, OverlayMode, SceneEventPayload, SceneItem, SceneSnapshot } from "./types/overlay";
 
 const DEFAULT_VIEWPORT: DisplayViewport = {
@@ -33,9 +33,18 @@ export default function App() {
   const [mode, setMode] = useState<OverlayMode>("Hidden");
   const [scene, setScene] = useState<readonly SceneItem[]>([]);
   const [sceneId, setSceneId] = useState("webview-scene");
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const [viewport, setViewport] = useState<DisplayViewport>(DEFAULT_VIEWPORT);
   const [annotationState, setAnnotationState] = useState(createInitialAnnotationState);
   const [propertyOpen, setPropertyOpen] = useState(false);
+
+  const applySceneSnapshot = useCallback((snapshot: SceneSnapshot) => {
+    setSceneId(snapshot.sceneId);
+    setScene(snapshot.items);
+    setCanUndo(snapshot.canUndo === true);
+    setCanRedo(snapshot.canRedo === true);
+  }, []);
 
   useEffect(() => {
     if (isSettingsWindow) return;
@@ -43,8 +52,7 @@ export default function App() {
     let disposeViewport: (() => void) | undefined;
     let disposeScene: (() => void) | undefined;
     void invoke<SceneSnapshot>("get_scene_snapshot").then((snapshot) => {
-      setSceneId(snapshot.sceneId);
-      setScene(snapshot.items);
+      applySceneSnapshot(snapshot);
     }).catch(() => undefined);
     void listen<OverlayMode>("overlay-mode-changed", (event) => setMode(event.payload)).then((unlisten) => { disposeMode = unlisten; });
     void listen<unknown>("overlay-viewport-changed", (event) => {
@@ -54,8 +62,7 @@ export default function App() {
     void listen<SceneEventPayload>("scene-changed", (event) => {
       const payload = event.payload;
       if (payload && Array.isArray(payload.items)) {
-        setSceneId(payload.sceneId);
-        setScene(payload.items);
+        applySceneSnapshot(payload);
       }
     }).then((unlisten) => { disposeScene = unlisten; });
     void invoke<{ mode: OverlayMode; viewport?: unknown }>("get_overlay_bootstrap_state")
@@ -66,22 +73,32 @@ export default function App() {
       })
       .catch(() => undefined);
     return () => { disposeMode?.(); disposeViewport?.(); disposeScene?.(); };
-  }, [isSettingsWindow, windowLabel]);
+  }, [applySceneSnapshot, isSettingsWindow, windowLabel]);
+
+  useEffect(() => {
+    if (isSettingsWindow) return;
+    const handleHistoryShortcut = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement
+        && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable='true']"))) return;
+      const action = historyActionForShortcut(event, navigator.platform.toLowerCase().includes("mac"));
+      if (!action) return;
+      event.preventDefault();
+      const command = action === "undo" ? "undo_scene" : "redo_scene";
+      void invoke<SceneSnapshot>(command).then(applySceneSnapshot).catch(() => undefined);
+    };
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  }, [applySceneSnapshot, isSettingsWindow]);
 
   const commitSceneItem = (item: SceneItem) => {
     void invoke<SceneSnapshot>("commit_scene_item", { item })
-      .then((snapshot) => {
-        setSceneId(snapshot.sceneId);
-        setScene(snapshot.items);
-      });
+      .then(applySceneSnapshot);
   };
 
   const moveTextItem = (id: string, anchor: { x: number; y: number }) => {
     void invoke<SceneSnapshot>("move_text_scene_item", { id, anchor })
-      .then((snapshot) => {
-        setSceneId(snapshot.sceneId);
-        setScene(snapshot.items);
-      });
+      .then(applySceneSnapshot);
   };
 
   const placeTextDraft = (anchor: { x: number; y: number }, style: AnnotationStyle, lifecycle: AnnotationLifecycleSnapshot) => {
@@ -101,10 +118,11 @@ export default function App() {
   };
   const eraseSceneItem = (id: string) => {
     void invoke<SceneSnapshot>("erase_scene_item", { id })
-      .then((snapshot) => {
-        setSceneId(snapshot.sceneId);
-        setScene(snapshot.items);
-      });
+      .then(applySceneSnapshot);
+  };
+
+  const runSceneCommand = (command: "undo_scene" | "redo_scene" | "clear_scene") => {
+    void invoke<SceneSnapshot>(command).then(applySceneSnapshot).catch(() => undefined);
   };
 
   const activeTool = annotationState.activeTool;
@@ -165,12 +183,18 @@ export default function App() {
               toolStyle={toolStyle ?? DEFAULT_PEN_STYLE}
               lifecycleMode={annotationState.lifecycleMode}
               vanishingDurationSeconds={annotationState.vanishingDurationSeconds}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              canClear={scene.length > 0}
               propertyOpen={propertyOpen}
               onSelectTool={selectTool}
               onToggleProperties={() => setPropertyOpen((open) => !open)}
               onUpdateStyle={updateActiveToolStyle}
               onToggleLifecycleMode={() => changeLifecycleMode(annotationState.lifecycleMode === "persistent" ? "vanishing" : "persistent")}
               onSetVanishingDuration={changeVanishingDuration}
+              onUndo={() => runSceneCommand("undo_scene")}
+              onRedo={() => runSceneCommand("redo_scene")}
+              onClearAll={() => runSceneCommand("clear_scene")}
             />
           ) : null}
           {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}

@@ -80,6 +80,8 @@ pub enum TextTool {
 pub const MIN_VANISHING_DURATION_SECONDS: f64 = 1.0;
 pub const MAX_VANISHING_DURATION_SECONDS: f64 = 3_600.0;
 pub const VANISHING_FADE_WINDOW_MS: u64 = 1_000;
+const MAX_SCENE_ITEMS: usize = 2_000;
+const MAX_HISTORY_DEPTH: usize = 50;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "lowercase", deny_unknown_fields)]
@@ -252,12 +254,22 @@ impl SceneItem {
 pub struct SceneSnapshot {
     pub scene_id: String,
     pub items: Vec<SceneItem>,
+    pub can_undo: bool,
+    pub can_redo: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SceneHistoryEntry {
+    before: Vec<SceneItem>,
+    after: Vec<SceneItem>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneStore {
     scene_id: String,
     items: Vec<SceneItem>,
+    past: Vec<SceneHistoryEntry>,
+    future: Vec<SceneHistoryEntry>,
 }
 
 impl Default for SceneStore {
@@ -273,6 +285,8 @@ impl SceneStore {
             // the lifetime of the app, including when a display is removed.
             scene_id: "webview-scene".into(),
             items: Vec::new(),
+            past: Vec::new(),
+            future: Vec::new(),
         }
     }
 
@@ -286,6 +300,8 @@ impl SceneStore {
         Ok(Self {
             scene_id,
             items: Vec::new(),
+            past: Vec::new(),
+            future: Vec::new(),
         })
     }
 
@@ -297,7 +313,17 @@ impl SceneStore {
         SceneSnapshot {
             scene_id: self.scene_id.clone(),
             items: self.items.clone(),
+            can_undo: !self.past.is_empty(),
+            can_redo: !self.future.is_empty(),
         }
+    }
+
+    fn record_history(&mut self, before: Vec<SceneItem>, after: Vec<SceneItem>) {
+        self.past.push(SceneHistoryEntry { before, after });
+        if self.past.len() > MAX_HISTORY_DEPTH {
+            self.past.remove(0);
+        }
+        self.future.clear();
     }
 
     pub fn commit_scene_item(&mut self, item: Value) -> Result<SceneSnapshot, RegistryError> {
@@ -322,8 +348,18 @@ impl SceneStore {
         if self.items.iter().any(|existing| existing.id() == id) {
             return Ok(self.snapshot());
         }
+        if self.items.len() >= MAX_SCENE_ITEMS {
+            return Err(RegistryError::InvalidSceneItem(
+                "scene item count exceeds the supported limit".into(),
+            ));
+        }
         item.lifecycle_mut().set_committed_at_ms(committed_at_ms);
-        self.items.push(item);
+        let before = self.items.clone();
+        let mut after = before.clone();
+        after.push(item);
+        validate_scene_items(&after)?;
+        self.items = after.clone();
+        self.record_history(before, after);
         Ok(self.snapshot())
     }
 
@@ -358,15 +394,26 @@ impl SceneStore {
     ) -> Result<SceneSnapshot, RegistryError> {
         validate_id(id)?;
         validate_point(&anchor, "anchor")?;
-        if let Some(item) = self.items.iter_mut().find(|item| item.id() == id) {
-            match item {
-                SceneItem::Text { anchor: current, .. } => *current = anchor,
+        if let Some(index) = self.items.iter().position(|item| item.id() == id) {
+            match &self.items[index] {
+                SceneItem::Text { anchor: current, .. } if *current == anchor => {
+                    return Ok(self.snapshot());
+                }
+                SceneItem::Text { .. } => {}
                 SceneItem::Stroke { .. } | SceneItem::Shape { .. } => {
                     return Err(RegistryError::InvalidSceneItem(
                         "only text items can be moved".into(),
                     ));
                 }
             }
+            let before = self.items.clone();
+            let mut after = before.clone();
+            if let SceneItem::Text { anchor: current, .. } = &mut after[index] {
+                *current = anchor;
+            }
+            validate_scene_items(&after)?;
+            self.items = after.clone();
+            self.record_history(before, after);
         }
         Ok(self.snapshot())
     }
@@ -374,14 +421,66 @@ impl SceneStore {
     pub fn erase_scene_item(&mut self, id: &str) -> Result<SceneSnapshot, RegistryError> {
         validate_id(id)?;
         if let Some(position) = self.items.iter().position(|item| item.id() == id) {
-            self.items.remove(position);
+            let before = self.items.clone();
+            let mut after = before.clone();
+            after.remove(position);
+            self.items = after.clone();
+            self.record_history(before, after);
         }
         Ok(self.snapshot())
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear_scene(&mut self) -> Option<SceneSnapshot> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let before = self.items.clone();
         self.items.clear();
+        self.record_history(before, Vec::new());
+        Some(self.snapshot())
     }
+
+    pub fn undo_scene(&mut self) -> Result<Option<SceneSnapshot>, RegistryError> {
+        let Some(entry) = self.past.last() else {
+            return Ok(None);
+        };
+        validate_scene_items(&entry.before)?;
+        validate_scene_items(&entry.after)?;
+        let entry = self.past.pop().expect("history entry was checked");
+        self.items = entry.before.clone();
+        self.future.push(entry);
+        Ok(Some(self.snapshot()))
+    }
+
+    pub fn redo_scene(&mut self) -> Result<Option<SceneSnapshot>, RegistryError> {
+        let Some(entry) = self.future.last() else {
+            return Ok(None);
+        };
+        validate_scene_items(&entry.before)?;
+        validate_scene_items(&entry.after)?;
+        let entry = self.future.pop().expect("history entry was checked");
+        self.items = entry.after.clone();
+        self.past.push(entry);
+        Ok(Some(self.snapshot()))
+    }
+}
+
+fn validate_scene_items(items: &[SceneItem]) -> Result<(), RegistryError> {
+    if items.len() > MAX_SCENE_ITEMS {
+        return Err(RegistryError::InvalidSceneItem(
+            "scene item count exceeds the supported limit".into(),
+        ));
+    }
+    let mut ids = BTreeSet::new();
+    for item in items {
+        validate_typed_scene_item(item)?;
+        if !ids.insert(item.id()) {
+            return Err(RegistryError::InvalidSceneItem(
+                "scene snapshot contains duplicate item ids".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn current_unix_time_ms() -> u64 {
@@ -1556,5 +1655,75 @@ mod tests {
             .move_text_scene_item("text-1", ScenePoint { x: f64::NAN, y: 1.0 })
             .is_err());
         assert_eq!(scene.snapshot(), moved);
+    }
+
+    #[test]
+    fn scene_store_undo_redo_tracks_erase_clear_and_redo_branch_invalidation() {
+        let mut scene = SceneStore::default();
+        let style = serde_json::json!({
+            "color":"#334155","opacity":0.92,"width":2.0,"fill":"none",
+            "fillColor":"#334155","fillOpacity":0.18,"textSize":24.0
+        });
+        let stroke = |id: &str, x: f64| serde_json::json!({
+            "id":id,"kind":"stroke","tool":"pen",
+            "points":[{"x":x,"y":10.0},{"x":x + 20.0,"y":10.0}],"style":style,
+            "lifecycle":{"mode":"vanishing","durationSeconds":5.0}
+        });
+
+        assert!(scene.undo_scene().unwrap().is_none());
+        assert!(scene.redo_scene().unwrap().is_none());
+        assert!(scene.clear_scene().is_none());
+        let first = scene.commit_scene_item_at(stroke("first", 10.0), 100).unwrap();
+        let second = scene.commit_scene_item_at(stroke("second", 40.0), 200).unwrap();
+        assert_eq!(second.items[0], first.items[0]);
+        assert!(second.can_undo);
+        assert!(!second.can_redo);
+
+        let erased = scene.erase_scene_item("first").unwrap();
+        assert_eq!(erased.items.iter().map(SceneItem::id).collect::<Vec<_>>(), ["second"]);
+        let restored = scene.undo_scene().unwrap().unwrap();
+        assert_eq!(restored.items, second.items);
+        assert!(restored.can_redo);
+
+        let re_erased = scene.redo_scene().unwrap().unwrap();
+        assert_eq!(re_erased.items, erased.items);
+        assert!(!re_erased.can_redo);
+
+        let cleared = scene.clear_scene().unwrap();
+        assert!(cleared.items.is_empty());
+        assert!(scene.clear_scene().is_none());
+        let restored_clear = scene.undo_scene().unwrap().unwrap();
+        assert_eq!(restored_clear.items, erased.items);
+        assert!(restored_clear.can_redo);
+
+        let branched = scene.commit_scene_item_at(stroke("third", 70.0), 300).unwrap();
+        assert_eq!(branched.items.iter().map(SceneItem::id).collect::<Vec<_>>(), ["second", "third"]);
+        assert!(!branched.can_redo);
+        assert!(scene.redo_scene().unwrap().is_none());
+        assert_eq!(scene.snapshot(), branched);
+    }
+
+    #[test]
+    fn scene_store_bounds_history_depth_and_validates_restored_snapshots() {
+        let mut scene = SceneStore::default();
+        for index in 0..=MAX_HISTORY_DEPTH {
+            let item = serde_json::json!({
+                "id":format!("stroke-{index}"),"kind":"stroke","tool":"pen",
+                "points":[{"x":1.0,"y":2.0}],
+                "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0}
+            });
+            scene.commit_scene_item_at(item, index as u64).unwrap();
+        }
+
+        for _ in 0..MAX_HISTORY_DEPTH {
+            assert!(scene.undo_scene().unwrap().is_some());
+        }
+        assert!(!scene.snapshot().can_undo);
+        assert!(scene.snapshot().can_redo);
+        for _ in 0..MAX_HISTORY_DEPTH {
+            assert!(scene.redo_scene().unwrap().is_some());
+        }
+        assert!(!scene.snapshot().can_redo);
+        assert_eq!(scene.snapshot().items.len(), MAX_HISTORY_DEPTH + 1);
     }
 }

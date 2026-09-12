@@ -19,6 +19,11 @@ main { min-height: 100vh; pointer-events: none; }
 .annotation-toolbar[data-dragging="true"] .annotation-toolbar__drag-handle { cursor: grabbing; }
 .annotation-toolbar__grip { color: #93c5fd; font-size: 15px; letter-spacing: -4px; line-height: 0.8; }
 .annotation-toolbar__tools { display: flex; flex-direction: column; gap: 3px; padding-top: 6px; overflow-y: auto; }
+.annotation-toolbar__history { display: grid; gap: 2px; padding-bottom: 5px; border-bottom: 1px solid rgba(148, 163, 184, 0.28); }
+.annotation-toolbar__history button { display: flex; align-items: center; justify-content: flex-start; gap: 7px; text-align: left; }
+.annotation-toolbar__history button > span:first-child { display: inline-flex; width: 18px; justify-content: center; color: #93c5fd; font-size: 16px; }
+.annotation-toolbar__history button:disabled { color: #64748b; opacity: 0.55; cursor: default; }
+.annotation-toolbar__history button:disabled:hover { background: transparent; }
 .annotation-toolbar button { min-height: 34px; border: 0; border-radius: 9px; padding: 5px 6px; color: #e2e8f0; background: transparent; font: 600 11px/1.1 system-ui, sans-serif; cursor: pointer; }
 .annotation-toolbar button:hover { background: rgba(148, 163, 184, 0.22); }
 .annotation-toolbar button[aria-pressed="true"] { color: #0f172a; background: #f8fafc; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.24); }
