@@ -20,15 +20,24 @@ const baseStyle: AnnotationStyle = {
   textSize: 24,
 };
 
-function renderToolbar(activeTool: AnnotationTool, toolStyle: AnnotationStyle = baseStyle): string {
+function renderToolbar(
+  activeTool: AnnotationTool,
+  toolStyle: AnnotationStyle = baseStyle,
+  lifecycleMode: "persistent" | "vanishing" = "persistent",
+  vanishingDurationSeconds = 3,
+): string {
   return renderToStaticMarkup(
     <AnnotationToolbar
       activeTool={activeTool}
       toolStyle={toolStyle}
+      lifecycleMode={lifecycleMode}
+      vanishingDurationSeconds={vanishingDurationSeconds}
       propertyOpen
       onSelectTool={() => undefined}
       onToggleProperties={() => undefined}
       onUpdateStyle={() => undefined}
+      onToggleLifecycleMode={() => undefined}
+      onSetVanishingDuration={() => undefined}
     />,
   );
 }
@@ -99,5 +108,23 @@ describe("AnnotationToolbar", () => {
     expect(markup).not.toContain('data-style-control="fill"');
     expect(markup).not.toContain('data-style-control="fillColor"');
     expect(markup).not.toContain('data-style-control="fillOpacity"');
+  });
+
+  it("always shows a scene-excluded lifecycle toggle and only shows durations for Vanishing", () => {
+    const persistent = renderToolbar("pen");
+    expect(persistent).toContain('data-lifecycle-toggle="true"');
+    expect(persistent).toContain('data-lifecycle-mode="persistent"');
+    expect(persistent).toContain('data-scene-excluded="true"');
+    expect(persistent).not.toContain('data-lifecycle-controls="true"');
+    expect(persistent).not.toContain('data-lifecycle-preset="true"');
+
+    const vanishing = renderToolbar("pen", baseStyle, "vanishing", 5);
+    expect(vanishing).toContain('data-lifecycle-mode="vanishing"');
+    expect(vanishing).toContain('data-lifecycle-controls="true"');
+    expect(vanishing).toContain('data-lifecycle-preset="true"');
+    expect(vanishing).toContain('aria-label="Custom vanishing duration in seconds"');
+    expect(vanishing).toContain('data-lifecycle-duration="true"');
+    expect(vanishing).toContain('value="5"');
+    expect(vanishing).toContain('data-scene-excluded="true"');
   });
 });

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
     AppHandle, Emitter, Manager, Position, Runtime, Size, WebviewUrl, WebviewWindowBuilder,
 };
@@ -76,6 +77,66 @@ pub enum TextTool {
     Text,
 }
 
+pub const MIN_VANISHING_DURATION_SECONDS: f64 = 1.0;
+pub const MAX_VANISHING_DURATION_SECONDS: f64 = 3_600.0;
+pub const VANISHING_FADE_WINDOW_MS: u64 = 1_000;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "lowercase", deny_unknown_fields)]
+pub enum AnnotationLifecycleSnapshot {
+    Persistent {
+        #[serde(rename = "committedAtMs", default, skip_serializing_if = "Option::is_none")]
+        committed_at_ms: Option<u64>,
+    },
+    Vanishing {
+        #[serde(rename = "durationSeconds")]
+        duration_seconds: f64,
+        #[serde(rename = "committedAtMs", default, skip_serializing_if = "Option::is_none")]
+        committed_at_ms: Option<u64>,
+    },
+}
+
+impl Default for AnnotationLifecycleSnapshot {
+    fn default() -> Self {
+        Self::Persistent {
+            committed_at_ms: None,
+        }
+    }
+}
+
+impl AnnotationLifecycleSnapshot {
+    fn validate(&self) -> Result<(), RegistryError> {
+        if let Self::Vanishing { duration_seconds, .. } = self {
+            if !duration_seconds.is_finite()
+                || !(MIN_VANISHING_DURATION_SECONDS..=MAX_VANISHING_DURATION_SECONDS)
+                    .contains(duration_seconds)
+            {
+                return Err(RegistryError::InvalidSceneItem(
+                    "vanishing duration is outside the finite supported range".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn set_committed_at_ms(&mut self, timestamp: u64) {
+        match self {
+            Self::Persistent { committed_at_ms }
+            | Self::Vanishing { committed_at_ms, .. } => *committed_at_ms = Some(timestamp),
+        }
+    }
+
+    fn expires_at_ms(&self) -> Option<f64> {
+        match self {
+            Self::Vanishing {
+                duration_seconds,
+                committed_at_ms: Some(committed_at_ms),
+            } => Some(*committed_at_ms as f64 + duration_seconds * 1_000.0),
+            Self::Persistent { .. } | Self::Vanishing { committed_at_ms: None, .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScenePoint {
@@ -138,6 +199,8 @@ pub enum SceneItem {
         tool: StrokeTool,
         points: Vec<ScenePoint>,
         style: AnnotationStyle,
+        #[serde(default)]
+        lifecycle: AnnotationLifecycleSnapshot,
     },
     #[serde(rename = "shape")]
     Shape {
@@ -145,6 +208,8 @@ pub enum SceneItem {
         tool: ShapeTool,
         geometry: SceneGeometry,
         style: AnnotationStyle,
+        #[serde(default)]
+        lifecycle: AnnotationLifecycleSnapshot,
     },
     #[serde(rename = "text")]
     Text {
@@ -153,6 +218,8 @@ pub enum SceneItem {
         anchor: ScenePoint,
         text: String,
         style: AnnotationStyle,
+        #[serde(default)]
+        lifecycle: AnnotationLifecycleSnapshot,
     },
 }
 
@@ -160,6 +227,22 @@ impl SceneItem {
     fn id(&self) -> &str {
         match self {
             Self::Stroke { id, .. } | Self::Shape { id, .. } | Self::Text { id, .. } => id,
+        }
+    }
+
+    fn lifecycle(&self) -> &AnnotationLifecycleSnapshot {
+        match self {
+            Self::Stroke { lifecycle, .. }
+            | Self::Shape { lifecycle, .. }
+            | Self::Text { lifecycle, .. } => lifecycle,
+        }
+    }
+
+    fn lifecycle_mut(&mut self) -> &mut AnnotationLifecycleSnapshot {
+        match self {
+            Self::Stroke { lifecycle, .. }
+            | Self::Shape { lifecycle, .. }
+            | Self::Text { lifecycle, .. } => lifecycle,
         }
     }
 }
@@ -218,6 +301,15 @@ impl SceneStore {
     }
 
     pub fn commit_scene_item(&mut self, item: Value) -> Result<SceneSnapshot, RegistryError> {
+        self.commit_scene_item_at(item, current_unix_time_ms())
+    }
+
+    /// Deterministic clock seam for lifecycle tests. Production commits use the system clock.
+    pub fn commit_scene_item_at(
+        &mut self,
+        item: Value,
+        committed_at_ms: u64,
+    ) -> Result<SceneSnapshot, RegistryError> {
         // Replayed IDs are idempotent even when an old client resends a legacy
         // or otherwise incomplete copy of an item already retained.
         if let Some(id) = item.get("id").and_then(Value::as_str) {
@@ -225,13 +317,38 @@ impl SceneStore {
                 return Ok(self.snapshot());
             }
         }
-        let item = normalize_scene_item(item)?;
+        let mut item = normalize_scene_item(item)?;
         let id = item.id();
         if self.items.iter().any(|existing| existing.id() == id) {
             return Ok(self.snapshot());
         }
+        item.lifecycle_mut().set_committed_at_ms(committed_at_ms);
         self.items.push(item);
         Ok(self.snapshot())
+    }
+
+    /// Removes all due vanishing items in one stable retain pass and returns one shared snapshot.
+    pub fn expire_due_items(&mut self, now_ms: u64) -> Option<SceneSnapshot> {
+        let prior_len = self.items.len();
+        self.items.retain(|item| {
+            item.lifecycle()
+                .expires_at_ms()
+                .map_or(true, |deadline| (now_ms as f64) < deadline)
+        });
+        (self.items.len() != prior_len).then(|| self.snapshot())
+    }
+
+    /// Whether a retained vanishing item currently needs animation redraws.
+    /// This remains independent of overlay visibility/click-through mode because
+    /// native windows may keep a visible WebView in the background lifecycle.
+    pub fn has_items_in_fade_window(&self, now_ms: u64) -> bool {
+        let now_ms = now_ms as f64;
+        self.items.iter().any(|item| {
+            item.lifecycle().expires_at_ms().is_some_and(|deadline| {
+                let fade_starts_at = deadline - VANISHING_FADE_WINDOW_MS as f64;
+                now_ms >= fade_starts_at && now_ms < deadline
+            })
+        })
     }
 
     pub fn move_text_scene_item(
@@ -267,6 +384,14 @@ impl SceneStore {
     }
 }
 
+fn current_unix_time_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(u64::MAX as u128) as u64
+}
+
 fn normalize_scene_item(mut item: Value) -> Result<SceneItem, RegistryError> {
     let object = item
         .as_object_mut()
@@ -297,9 +422,9 @@ fn validate_scene_keys(
     kind: &str,
 ) -> Result<(), RegistryError> {
     let allowed = match kind {
-        "stroke" => ["id", "kind", "tool", "points", "style"].as_slice(),
-        "shape" => ["id", "kind", "tool", "geometry", "style"].as_slice(),
-        "text" => ["id", "kind", "tool", "anchor", "text", "style"].as_slice(),
+        "stroke" => ["id", "kind", "tool", "points", "style", "lifecycle"].as_slice(),
+        "shape" => ["id", "kind", "tool", "geometry", "style", "lifecycle"].as_slice(),
+        "text" => ["id", "kind", "tool", "anchor", "text", "style", "lifecycle"].as_slice(),
         _ => {
             return Err(RegistryError::InvalidSceneItem(
                 "item kind is unsupported".into(),
@@ -312,6 +437,9 @@ fn validate_scene_keys(
         )));
     }
     validate_style_object(object.get("style"))?;
+    if let Some(lifecycle) = object.get("lifecycle") {
+        validate_lifecycle_object(lifecycle)?;
+    }
     match kind {
         "stroke" => {
             let points = object
@@ -329,6 +457,45 @@ fn validate_scene_keys(
                 .ok_or_else(|| RegistryError::InvalidSceneItem("text anchor is missing".into()))?,
         )?,
         _ => {}
+    }
+    Ok(())
+}
+
+fn validate_lifecycle_object(value: &Value) -> Result<(), RegistryError> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| RegistryError::InvalidSceneItem("lifecycle must be an object".into()))?;
+    let mode = object
+        .get("mode")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RegistryError::InvalidSceneItem("lifecycle mode must be a string".into()))?;
+    match mode {
+        "persistent" => {
+            validate_object_keys(object, &["mode", "committedAtMs"])?;
+        }
+        "vanishing" => {
+            validate_object_keys(object, &["mode", "durationSeconds", "committedAtMs"])?;
+            let duration = object
+                .get("durationSeconds")
+                .and_then(Value::as_f64)
+                .ok_or_else(|| RegistryError::InvalidSceneItem("vanishing duration must be a finite number".into()))?;
+            if !duration.is_finite()
+                || !(MIN_VANISHING_DURATION_SECONDS..=MAX_VANISHING_DURATION_SECONDS)
+                    .contains(&duration)
+            {
+                return Err(RegistryError::InvalidSceneItem(
+                    "vanishing duration is outside the finite supported range".into(),
+                ));
+            }
+        }
+        _ => return Err(RegistryError::InvalidSceneItem("lifecycle mode is unsupported".into())),
+    }
+    if object.contains_key("committedAtMs")
+        && object.get("committedAtMs").and_then(Value::as_u64).is_none()
+    {
+        return Err(RegistryError::InvalidSceneItem(
+            "lifecycle commit timestamp must be a non-negative integer".into(),
+        ));
     }
     Ok(())
 }
@@ -521,6 +688,7 @@ fn validate_geometry(tool: &ShapeTool, geometry: &SceneGeometry) -> Result<(), R
 
 fn validate_typed_scene_item(item: &SceneItem) -> Result<(), RegistryError> {
     validate_id(item.id())?;
+    item.lifecycle().validate()?;
     match item {
         SceneItem::Stroke {
             tool,
@@ -990,6 +1158,93 @@ mod tests {
                 .unwrap(),
             before
         );
+    }
+
+    #[test]
+    fn scene_store_defaults_legacy_lifecycle_and_stamps_creation_at_commit_time() {
+        let mut scene = SceneStore::default();
+        let legacy = serde_json::json!({
+            "id":"legacy","kind":"stroke","tool":"pen",
+            "points":[{"x":1.0,"y":2.0},{"x":3.0,"y":4.0}],
+            "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0}
+        });
+        let vanishing = serde_json::json!({
+            "id":"temporary","kind":"stroke","tool":"pen",
+            "points":[{"x":5.0,"y":6.0},{"x":7.0,"y":8.0}],
+            "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0},
+            "lifecycle":{"mode":"vanishing","durationSeconds":1.0}
+        });
+
+        let legacy_snapshot = scene.commit_scene_item_at(legacy, 100).unwrap();
+        assert!(matches!(
+            legacy_snapshot.items[0],
+            SceneItem::Stroke {
+                lifecycle: AnnotationLifecycleSnapshot::Persistent { committed_at_ms: Some(100) },
+                ..
+            }
+        ));
+        let committed = scene.commit_scene_item_at(vanishing, 200).unwrap();
+        assert!(matches!(
+            committed.items[1],
+            SceneItem::Stroke {
+                lifecycle: AnnotationLifecycleSnapshot::Vanishing {
+                    duration_seconds: 1.0,
+                    committed_at_ms: Some(200),
+                },
+                ..
+            }
+        ));
+        assert_eq!(scene.expire_due_items(1_199), None);
+        let expired = scene.expire_due_items(1_200).unwrap();
+        assert_eq!(expired.items.len(), 1);
+        assert!(matches!(expired.items[0], SceneItem::Stroke { ref id, .. } if id == "legacy"));
+    }
+
+    #[test]
+    fn scene_store_requests_redraws_only_during_the_final_vanishing_second() {
+        let mut scene = SceneStore::default();
+        scene.commit_scene_item_at(serde_json::json!({
+            "id":"temporary","kind":"stroke","tool":"pen",
+            "points":[{"x":1.0,"y":2.0}],
+            "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0},
+            "lifecycle":{"mode":"vanishing","durationSeconds":3.0}
+        }), 10_000).unwrap();
+
+        assert!(!scene.has_items_in_fade_window(11_999));
+        assert!(scene.has_items_in_fade_window(12_000));
+        assert!(scene.has_items_in_fade_window(12_500));
+        assert!(scene.has_items_in_fade_window(12_999));
+        assert!(!scene.has_items_in_fade_window(13_000));
+        assert!(scene.expire_due_items(13_000).is_some());
+        assert!(!scene.has_items_in_fade_window(13_000));
+    }
+
+    #[test]
+    fn scene_store_rejects_malformed_lifecycle_before_mutating_the_shared_snapshot() {
+        let mut scene = SceneStore::default();
+        scene.commit_scene_item_at(serde_json::json!({
+            "id":"stable","kind":"stroke","tool":"pen",
+            "points":[{"x":1.0,"y":2.0}],
+            "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0}
+        }), 100).unwrap();
+        let before = scene.snapshot();
+        for invalid_lifecycle in [
+            serde_json::Value::Null,
+            serde_json::json!({"mode":"unknown"}),
+            serde_json::json!({"mode":"vanishing","durationSeconds":0.5}),
+            serde_json::json!({"mode":"vanishing","durationSeconds":3_601.0}),
+            serde_json::json!({"mode":"persistent","durationSeconds":1.0}),
+            serde_json::json!({"mode":"persistent","committedAtMs":null}),
+        ] {
+            let invalid = serde_json::json!({
+                "id":"invalid","kind":"stroke","tool":"pen",
+                "points":[{"x":1.0,"y":2.0}],
+                "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0},
+                "lifecycle":invalid_lifecycle
+            });
+            assert!(scene.commit_scene_item_at(invalid, 200).is_err());
+            assert_eq!(scene.snapshot(), before);
+        }
     }
 
     #[test]

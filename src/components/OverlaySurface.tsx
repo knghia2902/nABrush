@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -6,6 +7,7 @@ import type {
 } from "react";
 import type {
   AnnotationStyle,
+  AnnotationLifecycleSnapshot,
   AnnotationTool,
   CanonicalPoint,
   DisplayOrientation,
@@ -25,7 +27,7 @@ import type {
   TextDraft,
   TextSceneItem,
 } from "../types/overlay";
-import { DEFAULT_PEN_STYLE } from "../types/overlay";
+import { DEFAULT_PEN_STYLE, isValidVanishingDuration } from "../types/overlay";
 import {
   HIT_TEST_PADDING,
   TEXT_LINE_HEIGHT,
@@ -41,6 +43,7 @@ export type PointerSample = { clientX: number; clientY: number };
 export type SurfaceRect = { left: number; top: number; width: number; height: number };
 export type GesturePhase = "idle" | "pressed" | "previewing";
 export type GestureTerminalAction = "ignore" | "cancel" | "commit";
+export const VANISHING_FADE_WINDOW_MS = 1_000;
 
 export function gesturePhaseFor(pointerId: number | null, transientSceneItem: SceneItem | null): GesturePhase {
   if (pointerId === null) return "idle";
@@ -141,8 +144,9 @@ export function createStroke(
   points: readonly StrokePoint[],
   style: AnnotationStyle = DEFAULT_PEN_STYLE,
   tool: StrokeTool = "pen",
+  lifecycle: AnnotationLifecycleSnapshot = { mode: "persistent" },
 ): StrokeSceneItem {
-  return { id, kind: "stroke", tool, points, style };
+  return { id, kind: "stroke", tool, points, style, lifecycle };
 }
 
 export function createGeometryItem(
@@ -150,14 +154,16 @@ export function createGeometryItem(
   tool: "line" | "arrow",
   geometry: LineGeometry,
   style: AnnotationStyle,
+  lifecycle?: AnnotationLifecycleSnapshot,
 ): GeometrySceneItem;
 export function createGeometryItem(
   id: string,
   tool: GeometrySceneItem["tool"],
   geometry: SceneGeometry,
   style: AnnotationStyle,
+  lifecycle?: AnnotationLifecycleSnapshot,
 ): GeometrySceneItem {
-  return { id, kind: "shape", tool, geometry, style };
+  return { id, kind: "shape", tool, geometry, style, lifecycle: lifecycle ?? { mode: "persistent" } };
 }
 
 export function createShapeItem(
@@ -165,8 +171,9 @@ export function createShapeItem(
   tool: "rectangle" | "ellipse",
   geometry: RectangleGeometry | EllipseGeometry,
   style: AnnotationStyle,
+  lifecycle: AnnotationLifecycleSnapshot = { mode: "persistent" },
 ): GeometrySceneItem {
-  return { id, kind: "shape", tool, geometry, style };
+  return { id, kind: "shape", tool, geometry, style, lifecycle };
 }
 
 export function transientSceneItemForGesture(
@@ -175,9 +182,10 @@ export function transientSceneItemForGesture(
   viewport: DisplayViewport | undefined,
   tool: StrokeTool,
   style: AnnotationStyle,
+  lifecycle: AnnotationLifecycleSnapshot = { mode: "persistent" },
 ): StrokeSceneItem | null {
   const points = normalizePointerPath(samples, rect, viewport);
-  return points.length < 2 ? null : createStroke("transient-stroke", points, style, tool);
+  return points.length < 2 ? null : createStroke("transient-stroke", points, style, tool, lifecycle);
 }
 
 export function transientGeometryForGesture(
@@ -186,24 +194,44 @@ export function transientGeometryForGesture(
   viewport: DisplayViewport | undefined,
   tool: ShapeTool,
   style: AnnotationStyle,
+  lifecycle: AnnotationLifecycleSnapshot = { mode: "persistent" },
 ): GeometrySceneItem | null {
   const points = normalizePointerPath(samples, rect, viewport);
   const start = points[0];
   const end = points.at(-1);
   if (!start || !end || !isGeometryDragValid(start, end)) return null;
   if (tool === "line" || tool === "arrow") {
-    return createGeometryItem("transient-geometry", tool, { type: "line", start, end }, style);
+    return createGeometryItem("transient-geometry", tool, { type: "line", start, end }, style, lifecycle);
   }
   const bounds = normalizeShapeBounds(start, end);
   if (tool === "rectangle") {
-    return createShapeItem("transient-geometry", tool, { type: "rectangle", ...bounds }, style);
+    return createShapeItem("transient-geometry", tool, { type: "rectangle", ...bounds }, style, lifecycle);
   }
   return createShapeItem("transient-geometry", tool, {
     type: "ellipse",
     center: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
     radiusX: bounds.width / 2,
     radiusY: bounds.height / 2,
-  }, style);
+  }, style, lifecycle);
+}
+
+export function sceneItemExpiryDeadlineMs(item: SceneItem): number | null {
+  const lifecycle = item.lifecycle;
+  if (!lifecycle || lifecycle.mode !== "vanishing") return null;
+  if (!isValidVanishingDuration(lifecycle.durationSeconds)
+    || !Number.isFinite(lifecycle.committedAtMs)
+    || lifecycle.committedAtMs === undefined) return null;
+  return lifecycle.committedAtMs + lifecycle.durationSeconds * 1_000;
+}
+
+/** Returns the lifecycle multiplier (not the item's style opacity) at a deterministic clock time. */
+export function sceneItemOpacityMultiplier(item: SceneItem, nowMs: number): number {
+  const deadline = sceneItemExpiryDeadlineMs(item);
+  if (deadline === null || !Number.isFinite(nowMs)) return 1;
+  if (nowMs >= deadline) return 0;
+  const fadeStart = deadline - VANISHING_FADE_WINDOW_MS;
+  if (nowMs <= fadeStart) return 1;
+  return Math.max(0, (deadline - nowMs) / VANISHING_FADE_WINDOW_MS);
 }
 
 /** Backwards-compatible helper for the Phase 2 renderer tests and call sites. */
@@ -467,6 +495,7 @@ export function drawScene(
   viewport?: DisplayViewport,
   transientSceneItem?: SceneItem | null,
   hoveredItemId?: string | null,
+  nowMs = Date.now(),
 ) {
   context.clearRect(0, 0, width, height);
   const renderedScene = transientSceneItem
@@ -475,7 +504,23 @@ export function drawScene(
   const items = transientSceneItem && !scene.some((item) => item.id === transientSceneItem.id)
     ? [...renderedScene, transientSceneItem]
     : renderedScene;
+  const visibleItems: SceneItem[] = [];
   for (const item of items) {
+    const lifecycleOpacity = sceneItemOpacityMultiplier(item, nowMs);
+    if (lifecycleOpacity <= 0) continue;
+    const renderedItem = lifecycleOpacity === 1
+      ? item
+      : {
+        ...item,
+        style: {
+          ...item.style,
+          opacity: item.style.opacity * lifecycleOpacity,
+          fillOpacity: item.style.fillOpacity * lifecycleOpacity,
+        },
+      } as SceneItem;
+    visibleItems.push(renderedItem);
+  }
+  for (const item of visibleItems) {
     if (item.kind === "stroke") drawStroke(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "line") drawLineGeometry(context, item, width, height, viewport);
     if (item.kind === "shape" && item.tool === "arrow") drawArrowGeometry(context, item, width, height, viewport);
@@ -483,7 +528,7 @@ export function drawScene(
     if (item.kind === "text") drawTextItem(context, item, width, height, viewport);
   }
   if (hoveredItemId) {
-    const hovered = scene.find((item) => item.id === hoveredItemId);
+    const hovered = visibleItems.find((item) => item.id === hoveredItemId);
     if (hovered) drawHitHighlight(context, hovered, width, height, viewport);
   }
 }
@@ -494,8 +539,9 @@ type Props = {
   viewport: DisplayViewport;
   activeTool: AnnotationTool;
   toolStyle: AnnotationStyle;
+  lifecycleSnapshot: AnnotationLifecycleSnapshot;
   textDraft: TextDraft | null;
-  onPlaceTextDraft: (anchor: CanonicalPoint, style: AnnotationStyle) => void;
+  onPlaceTextDraft: (anchor: CanonicalPoint, style: AnnotationStyle, lifecycle: AnnotationLifecycleSnapshot) => void;
   onUpdateTextDraft: (value: string) => void;
   onCancelTextDraft: () => void;
   onCommitSceneItem: (item: SceneItem) => void;
@@ -520,6 +566,7 @@ export function OverlaySurface({
   viewport,
   activeTool,
   toolStyle,
+  lifecycleSnapshot,
   textDraft,
   onPlaceTextDraft,
   onUpdateTextDraft,
@@ -538,6 +585,7 @@ export function OverlaySurface({
   const textShiftRef = useRef(false);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
+  const gestureLifecycleRef = useRef<AnnotationLifecycleSnapshot>(lifecycleSnapshot);
   const gestureToolRef = useRef<AnnotationTool>(activeTool);
   const nextItemIdRef = useRef(0);
   const [transientSceneItem, setTransientSceneItem] = useState<SceneItem | null>(null);
@@ -554,7 +602,7 @@ export function OverlaySurface({
     return width;
   }, []);
 
-  const redraw = useCallback(() => {
+  const redraw = useCallback((nowMs = Date.now()) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = viewport.scaleFactor;
@@ -565,19 +613,35 @@ export function OverlaySurface({
     const context = canvas.getContext("2d");
     if (!context) return;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawScene(context, scene, size.width, size.height, viewport, transientSceneItem, hoveredItemId);
+    drawScene(context, scene, size.width, size.height, viewport, transientSceneItem, hoveredItemId, nowMs);
   }, [hoveredItemId, scene, transientSceneItem, viewport]);
 
   useEffect(() => {
     redraw();
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(redraw);
+    const handleResize = () => redraw();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(handleResize);
     observer?.observe(canvas);
-    window.addEventListener("resize", redraw);
+    window.addEventListener("resize", handleResize);
     return () => {
       observer?.disconnect();
-      window.removeEventListener("resize", redraw);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [redraw]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen<number>("scene-lifecycle-frame", ({ payload }) => redraw(payload))
+      .then((stopListening) => {
+        if (disposed) stopListening();
+        else unlisten = stopListening;
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
     };
   }, [redraw]);
 
@@ -648,7 +712,7 @@ export function OverlaySurface({
       }
       suppressTextClickRef.current = false;
       if (!textDraft) {
-        onPlaceTextDraft(point, { ...toolStyle });
+        onPlaceTextDraft(point, { ...toolStyle }, lifecycleSnapshot);
       }
       return;
     }
@@ -666,6 +730,7 @@ export function OverlaySurface({
     pointerIdRef.current = event.pointerId;
     samplesRef.current = [{ clientX: event.clientX, clientY: event.clientY }];
     gestureStyleRef.current = { ...toolStyle };
+    gestureLifecycleRef.current = lifecycleSnapshot;
     gestureToolRef.current = activeTool;
     setTransientSceneItem(null);
     setGesturePhase("pressed");
@@ -697,11 +762,11 @@ export function OverlaySurface({
     samplesRef.current.push({ clientX: event.clientX, clientY: event.clientY });
     const rect = event.currentTarget.getBoundingClientRect();
     if (gestureToolRef.current === "pen" || gestureToolRef.current === "highlighter") {
-      const transient = transientSceneItemForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current);
+      const transient = transientSceneItemForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current, gestureLifecycleRef.current);
       setTransientSceneItem(transient);
       setGesturePhase(gesturePhaseFor(pointerIdRef.current, transient));
     } else if (isShapeTool(gestureToolRef.current)) {
-      const transient = transientGeometryForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current);
+      const transient = transientGeometryForGesture(samplesRef.current, rect, viewport, gestureToolRef.current, gestureStyleRef.current, gestureLifecycleRef.current);
       setTransientSceneItem(transient);
       setGesturePhase(gesturePhaseFor(pointerIdRef.current, transient));
     }
@@ -741,21 +806,22 @@ export function OverlaySurface({
     const points = normalizePointerPath(samples, rect, viewport);
     cancelGesture();
     if (isShapeTool(tool)) {
-      const geometryItem = transientGeometryForGesture(samples, rect, viewport, tool, style);
+      const lifecycle = gestureLifecycleRef.current;
+      const geometryItem = transientGeometryForGesture(samples, rect, viewport, tool, style, lifecycle);
       if (!geometryItem) return;
       nextItemIdRef.current += 1;
       const id = `${tool}-${nextItemIdRef.current}`;
       if (tool === "line" || tool === "arrow") {
-        onCommitSceneItem(createGeometryItem(id, tool, geometryItem.geometry as LineGeometry, style));
+        onCommitSceneItem(createGeometryItem(id, tool, geometryItem.geometry as LineGeometry, style, lifecycle));
       } else if (tool === "rectangle" || tool === "ellipse") {
-        onCommitSceneItem(createShapeItem(id, tool, geometryItem.geometry as RectangleGeometry | EllipseGeometry, style));
+        onCommitSceneItem(createShapeItem(id, tool, geometryItem.geometry as RectangleGeometry | EllipseGeometry, style, lifecycle));
       }
       return;
     }
     if (tool !== "pen" && tool !== "highlighter") return;
     if (points.length < 2) return;
     nextItemIdRef.current += 1;
-    onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool));
+    onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool, gestureLifecycleRef.current));
   };
 
   const toCanvasGestureEvent = (

@@ -11,12 +11,16 @@ import {
   isGeometryDragValid,
   measureTextBounds,
   normalizeGeometryBounds,
+  lifecycleSnapshotFor,
+  selectLifecycleMode,
+  setVanishingDuration,
   selectAnnotationTool,
   textBounds,
   textDraftTransition,
   updateToolStyle,
 } from "./annotation";
 import type { AnnotationStyle, SceneItem, TextDraft } from "../types/overlay";
+import { DEFAULT_VANISHING_DURATION_SECONDS, MAX_VANISHING_DURATION_SECONDS, MIN_VANISHING_DURATION_SECONDS } from "../types/overlay";
 
 const textStyle: AnnotationStyle = {
   color: "#334155",
@@ -51,10 +55,36 @@ describe("annotation tool state", () => {
     expect([...TOOL_ORDER]).toEqual(["pen", "highlighter", "line", "arrow", "rectangle", "ellipse", "text", "eraser"]);
     expect(Object.keys(state.stylesByTool)).toEqual([...TOOL_ORDER]);
     expect(state.activeTool).toBe("pen");
+    expect(state.lifecycleMode).toBe("persistent");
+    expect(state.vanishingDurationSeconds).toBe(DEFAULT_VANISHING_DURATION_SECONDS);
+    expect(lifecycleSnapshotFor(state)).toEqual({ mode: "persistent" });
     expect(state.stylesByTool.pen.width).toBe(2);
     expect(state.stylesByTool.line.width).toBe(2);
     expect(state.stylesByTool.highlighter).toMatchObject({ width: 12, opacity: 0.35, color: "#facc15" });
     expect(DEFAULT_TOOL_STYLES.pen.width).toBeLessThan(4);
+  });
+
+  it("changes lifecycle creation settings without replacing per-tool style memory", () => {
+    const initial = createInitialAnnotationState();
+    const styled = updateToolStyle(initial, "pen", { color: "#22c55e" });
+    const vanishing = selectLifecycleMode(styled, "vanishing");
+    const customDuration = setVanishingDuration(vanishing, 4.5);
+
+    expect(lifecycleSnapshotFor(vanishing)).toEqual({ mode: "vanishing", durationSeconds: DEFAULT_VANISHING_DURATION_SECONDS });
+    expect(lifecycleSnapshotFor(customDuration)).toEqual({ mode: "vanishing", durationSeconds: 4.5 });
+    expect(customDuration.stylesByTool).toBe(styled.stylesByTool);
+    expect(styled.lifecycleMode).toBe("persistent");
+    expect(customDuration.vanishingDurationSeconds).toBe(4.5);
+  });
+
+  it("rejects non-finite and out-of-range custom durations without mutating state", () => {
+    const initial = createInitialAnnotationState();
+    const vanishing = selectLifecycleMode(initial, "vanishing");
+
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY, 0, MIN_VANISHING_DURATION_SECONDS - 0.01, MAX_VANISHING_DURATION_SECONDS + 1]) {
+      expect(setVanishingDuration(vanishing, value)).toBe(vanishing);
+    }
+    expect(setVanishingDuration(vanishing, MAX_VANISHING_DURATION_SECONDS).vanishingDurationSeconds).toBe(MAX_VANISHING_DURATION_SECONDS);
   });
 
   it("selects a tool without resetting retained per-tool style memory", () => {
@@ -124,6 +154,7 @@ describe("annotation tool state", () => {
       anchor: draft.anchor,
       value: "",
       style: textStyle,
+      lifecycle: { mode: "persistent" },
     });
     expect(textDraftTransition(draft, { type: "update", value: "hello world" })?.value).toBe("hello world");
     expect(textDraftTransition(draft, { type: "insert-newline" })?.value).toBe("hello\n");
@@ -135,7 +166,7 @@ describe("annotation tool state", () => {
 
   it("creates typed text items and measures every line with deterministic bounds", () => {
     const item = createTextItem("text-1", draft);
-    expect(item).toEqual({ id: "text-1", kind: "text", tool: "text", anchor: draft.anchor, text: "hello", style: textStyle });
+    expect(item).toEqual({ id: "text-1", kind: "text", tool: "text", anchor: draft.anchor, text: "hello", style: textStyle, lifecycle: { mode: "persistent" } });
     expect(measureTextBounds(draft.anchor, "hello\nworld!", textStyle, metric)).toMatchObject({
       x: 100,
       y: 200,

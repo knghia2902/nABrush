@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { AnnotationStyle, AnnotationTool } from "../types/overlay";
+import {
+  MAX_VANISHING_DURATION_SECONDS,
+  MIN_VANISHING_DURATION_SECONDS,
+  VANISHING_DURATION_PRESETS,
+} from "../types/overlay";
+import type { AnnotationLifecycleMode, AnnotationStyle, AnnotationTool } from "../types/overlay";
 import { TOOL_ORDER } from "../state/annotation";
 
 const TOOL_LABELS: Record<AnnotationTool, string> = {
@@ -84,10 +89,14 @@ export function moveToolbarPosition(
 export type AnnotationToolbarProps = {
   activeTool: AnnotationTool;
   toolStyle: AnnotationStyle;
+  lifecycleMode: AnnotationLifecycleMode;
+  vanishingDurationSeconds: number;
   propertyOpen: boolean;
   onSelectTool: (tool: AnnotationTool) => void;
   onToggleProperties: () => void;
   onUpdateStyle: (patch: Partial<AnnotationStyle>) => void;
+  onToggleLifecycleMode: () => void;
+  onSetVanishingDuration: (durationSeconds: number) => void;
 };
 
 type DragState = { pointerId: number; offsetX: number; offsetY: number };
@@ -100,16 +109,26 @@ function viewportSize() {
 export function AnnotationToolbar({
   activeTool,
   toolStyle,
+  lifecycleMode,
+  vanishingDurationSeconds,
   propertyOpen,
   onSelectTool,
   onToggleProperties,
   onUpdateStyle,
+  onToggleLifecycleMode,
+  onSetVanishingDuration,
 }: AnnotationToolbarProps) {
   const toolbarRef = useRef<HTMLElement>(null);
   const handleRef = useRef<HTMLButtonElement>(null);
+  const propertiesButtonRef = useRef<HTMLButtonElement>(null);
+  const propertiesPanelRef = useRef<HTMLElement>(null);
+  const lifecycleButtonRef = useRef<HTMLButtonElement>(null);
+  const lifecyclePanelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const positionRef = useRef<ToolbarPosition>({ left: TOOLBAR_MARGIN, top: TOOLBAR_MARGIN });
   const [position, setPosition] = useState<ToolbarPosition>(positionRef.current);
+  const [propertiesPosition, setPropertiesPosition] = useState<ToolbarPosition>({ left: TOOLBAR_MARGIN + 76, top: TOOLBAR_MARGIN });
+  const [lifecyclePosition, setLifecyclePosition] = useState<ToolbarPosition>({ left: TOOLBAR_MARGIN + 76, top: TOOLBAR_MARGIN });
   const [dragging, setDragging] = useState(false);
 
   const toolbarSize = useCallback(() => {
@@ -136,6 +155,35 @@ export function AnnotationToolbar({
     setClampedPosition(positionRef.current);
   }, [setClampedPosition]);
 
+  const clampPanelPosition = useCallback((
+    panel: HTMLElement | null,
+    anchor: HTMLElement | null,
+  ): ToolbarPosition | null => {
+    if (!panel || !anchor) return null;
+    const bounds = panel.getBoundingClientRect();
+    const anchorBounds = anchor.getBoundingClientRect();
+    return clampToolbarPosition(
+      window.innerWidth,
+      window.innerHeight,
+      bounds.width,
+      bounds.height,
+      TOOLBAR_MARGIN,
+      anchorBounds.right + 8,
+      anchorBounds.top,
+    );
+  }, []);
+
+  const repositionPanels = useCallback(() => {
+    if (propertyOpen) {
+      const next = clampPanelPosition(propertiesPanelRef.current, propertiesButtonRef.current);
+      if (next) setPropertiesPosition(next);
+    }
+    if (lifecycleMode === "vanishing") {
+      const next = clampPanelPosition(lifecyclePanelRef.current, lifecycleButtonRef.current);
+      if (next) setLifecyclePosition(next);
+    }
+  }, [clampPanelPosition, lifecycleMode, propertyOpen]);
+
   const finishDrag = useCallback((pointerId?: number) => {
     const drag = dragRef.current;
     if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return;
@@ -147,18 +195,23 @@ export function AnnotationToolbar({
 
   useLayoutEffect(() => {
     reClampPosition();
-  }, [reClampPosition]);
+    repositionPanels();
+  }, [reClampPosition, repositionPanels, lifecycleMode, propertyOpen, vanishingDurationSeconds]);
 
   useEffect(() => {
     const handleWindowBlur = () => finishDrag();
-    window.addEventListener("resize", reClampPosition);
+    const handleResize = () => {
+      reClampPosition();
+      repositionPanels();
+    };
+    window.addEventListener("resize", handleResize);
     window.addEventListener("blur", handleWindowBlur);
     return () => {
-      window.removeEventListener("resize", reClampPosition);
+      window.removeEventListener("resize", handleResize);
       window.removeEventListener("blur", handleWindowBlur);
       finishDrag();
     };
-  }, [finishDrag, reClampPosition]);
+  }, [finishDrag, reClampPosition, repositionPanels]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0 || dragRef.current) return;
@@ -203,7 +256,8 @@ export function AnnotationToolbar({
     ), size);
   };
 
-  const popoverStyle = { left: position.left + 76, top: position.top };
+  const popoverStyle = { left: propertiesPosition.left, top: propertiesPosition.top };
+  const lifecyclePopoverStyle = { left: lifecyclePosition.left, top: lifecyclePosition.top };
   const supportsFill = activeTool === "rectangle" || activeTool === "ellipse";
   const supportsTextSize = activeTool === "text";
 
@@ -261,6 +315,7 @@ export function AnnotationToolbar({
             </button>
           ))}
           <button
+            ref={propertiesButtonRef}
             type="button"
             className="annotation-toolbar__properties"
             aria-label="Tool properties"
@@ -273,10 +328,66 @@ export function AnnotationToolbar({
             <span aria-hidden="true">⚙</span>
             <span className="annotation-toolbar__tool-label">Properties</span>
           </button>
+          <div className="annotation-toolbar__lifecycle" data-scene-excluded="true">
+            <button
+              ref={lifecycleButtonRef}
+              type="button"
+              className="annotation-toolbar__lifecycle-toggle"
+              aria-label={`Ink lifecycle: ${lifecycleMode === "persistent" ? "Persistent" : "Vanishing"}`}
+              title={`Ink lifecycle: ${lifecycleMode === "persistent" ? "Persistent" : "Vanishing"}`}
+              aria-pressed={lifecycleMode === "vanishing"}
+              data-lifecycle-toggle="true"
+              data-lifecycle-mode={lifecycleMode}
+              data-scene-excluded="true"
+              onClick={onToggleLifecycleMode}
+            >
+              <span aria-hidden="true">◷</span>
+              <span className="annotation-toolbar__tool-label">{lifecycleMode === "persistent" ? "Persistent" : "Vanishing"}</span>
+            </button>
+          </div>
         </div>
       </nav>
+      {lifecycleMode === "vanishing" ? (
+        <div
+          ref={lifecyclePanelRef}
+          className="lifecycle-popover"
+          aria-label="Vanishing ink duration"
+          data-lifecycle-controls="true"
+          data-scene-excluded="true"
+          style={lifecyclePopoverStyle}
+        >
+          <label>
+            Duration
+            <select
+              aria-label="Vanishing duration preset"
+              data-lifecycle-preset="true"
+              value={VANISHING_DURATION_PRESETS.includes(vanishingDurationSeconds as (typeof VANISHING_DURATION_PRESETS)[number]) ? String(vanishingDurationSeconds) : "custom"}
+              onChange={(event) => {
+                if (event.target.value !== "custom") onSetVanishingDuration(Number(event.target.value));
+              }}
+            >
+              {VANISHING_DURATION_PRESETS.map((seconds) => <option key={seconds} value={seconds}>{seconds} sec</option>)}
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label>
+            Custom seconds
+            <input
+              type="number"
+              min={MIN_VANISHING_DURATION_SECONDS}
+              max={MAX_VANISHING_DURATION_SECONDS}
+              step="any"
+              value={vanishingDurationSeconds}
+              aria-label="Custom vanishing duration in seconds"
+              data-lifecycle-duration="true"
+              onChange={(event) => onSetVanishingDuration(Number(event.target.value))}
+            />
+          </label>
+        </div>
+      ) : null}
       {propertyOpen ? (
         <section
+          ref={propertiesPanelRef}
           id="annotation-property-popover"
           className="property-popover"
           aria-label={`${TOOL_LABELS[activeTool]} properties`}

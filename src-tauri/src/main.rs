@@ -19,7 +19,9 @@ use serde_json::Value;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use tauri::{Manager, Runtime};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tauri::{Emitter, Manager, Runtime};
 
 fn setup<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     app.manage(AppController::default());
@@ -32,7 +34,41 @@ fn setup<R: Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
     tray::install(app.handle())?;
     shortcut::register_runtime(app.handle())?;
     platform::install_observers(app.handle())?;
+    spawn_scene_expiry_scheduler(app.handle().clone());
     Ok(())
+}
+
+fn spawn_scene_expiry_scheduler<R: Runtime>(app: tauri::AppHandle<R>) {
+    thread::spawn(move || loop {
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        let (expired_snapshot, fading) = {
+            let scene_state = app.state::<Mutex<SceneStore>>();
+            let mut scene = scene_state.lock().expect("scene mutex poisoned");
+            let expired_snapshot = scene.expire_due_items(now_ms);
+            let fading = scene.has_items_in_fade_window(now_ms);
+            (expired_snapshot, fading)
+        };
+        if let Some(snapshot) = expired_snapshot {
+            if let Err(error) = app
+                .state::<Mutex<OverlayRegistry>>()
+                .lock()
+                .expect("registry mutex poisoned")
+                .broadcast_scene(&app, &snapshot)
+            {
+                eprintln!("nABrush could not broadcast expired scene snapshot: {error}");
+            }
+        }
+        if fading {
+            if let Err(error) = app.emit("scene-lifecycle-frame", now_ms) {
+                eprintln!("nABrush could not broadcast a scene lifecycle frame: {error}");
+            }
+        }
+        thread::sleep(Duration::from_millis(if fading { 16 } else { 100 }));
+    });
 }
 
 #[tauri::command]

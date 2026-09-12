@@ -9,12 +9,15 @@ import { OverlaySurface } from "./components/OverlaySurface";
 import { AnnotationToolbar } from "./components/AnnotationToolbar";
 import {
   createInitialAnnotationState,
+  lifecycleSnapshotFor,
   selectAnnotationTool,
+  selectLifecycleMode,
+  setVanishingDuration,
   textDraftTransition,
   updateToolStyle,
 } from "./state/annotation";
 import { DEFAULT_PEN_STYLE, normalizeDisplayViewport } from "./types/overlay";
-import type { AnnotationStyle, AnnotationTool, DisplayViewport, OverlayMode, SceneEventPayload, SceneItem, SceneSnapshot } from "./types/overlay";
+import type { AnnotationLifecycleMode, AnnotationLifecycleSnapshot, AnnotationStyle, AnnotationTool, DisplayViewport, OverlayMode, SceneEventPayload, SceneItem, SceneSnapshot } from "./types/overlay";
 
 const DEFAULT_VIEWPORT: DisplayViewport = {
   id: "default",
@@ -81,10 +84,10 @@ export default function App() {
       });
   };
 
-  const placeTextDraft = (anchor: { x: number; y: number }, style: AnnotationStyle) => {
+  const placeTextDraft = (anchor: { x: number; y: number }, style: AnnotationStyle, lifecycle: AnnotationLifecycleSnapshot) => {
     setAnnotationState((state) => ({
       ...state,
-      textDraft: textDraftTransition(state.textDraft, { type: "place", anchor, style }),
+      textDraft: textDraftTransition(state.textDraft, { type: "place", anchor, style, lifecycle }),
     }));
   };
   const updateTextDraft = (value: string) => {
@@ -112,8 +115,19 @@ export default function App() {
   const updateActiveToolStyle = (patch: Partial<AnnotationStyle>) => {
     setAnnotationState((state) => updateToolStyle(state, state.activeTool, patch));
   };
+  const changeLifecycleMode = (lifecycleMode: AnnotationLifecycleMode) => {
+    setAnnotationState((state) => selectLifecycleMode(state, lifecycleMode));
+  };
+  const changeVanishingDuration = (durationSeconds: number) => {
+    setAnnotationState((state) => setVanishingDuration(state, durationSeconds));
+  };
+  const lifecycleSnapshot = lifecycleSnapshotFor(annotationState);
 
   const sceneIds = scene.map((item) => item.id).join(",");
+  const sceneLifecycles = JSON.stringify(scene.map((item) => ({
+    id: item.id,
+    lifecycle: item.lifecycle ?? { mode: "persistent" },
+  })));
 
   return (
     <main
@@ -122,6 +136,7 @@ export default function App() {
       data-window-label={windowLabel}
       data-scene-count={!isSettingsWindow ? scene.length : undefined}
       data-scene-ids={!isSettingsWindow ? sceneIds : undefined}
+      data-scene-lifecycles={!isSettingsWindow ? sceneLifecycles : undefined}
       data-scene-id={!isSettingsWindow ? sceneId : undefined}
       {...(!isSettingsWindow ? { "data-overlay-surface": "loaded" } : {})}
     >
@@ -135,6 +150,7 @@ export default function App() {
             viewport={viewport}
             activeTool={activeTool}
             toolStyle={toolStyle ?? DEFAULT_PEN_STYLE}
+            lifecycleSnapshot={lifecycleSnapshot}
             textDraft={annotationState.textDraft}
             onPlaceTextDraft={placeTextDraft}
             onUpdateTextDraft={updateTextDraft}
@@ -147,10 +163,14 @@ export default function App() {
             <AnnotationToolbar
               activeTool={activeTool}
               toolStyle={toolStyle ?? DEFAULT_PEN_STYLE}
+              lifecycleMode={annotationState.lifecycleMode}
+              vanishingDurationSeconds={annotationState.vanishingDurationSeconds}
               propertyOpen={propertyOpen}
               onSelectTool={selectTool}
               onToggleProperties={() => setPropertyOpen((open) => !open)}
               onUpdateStyle={updateActiveToolStyle}
+              onToggleLifecycleMode={() => changeLifecycleMode(annotationState.lifecycleMode === "persistent" ? "vanishing" : "persistent")}
+              onSetVanishingDuration={changeVanishingDuration}
             />
           ) : null}
           {mode === "VisibleInteractive" ? <span aria-label="Drawing mode" /> : null}

@@ -3,6 +3,13 @@ import process from "node:process";
 
 const executable = process.platform === "win32" ? "nabrush.exe" : "nabrush";
 const application = path.resolve("src-tauri", "target", "debug", executable);
+const embeddedPort = process.env.TAURI_WEBDRIVER_PORT
+  ? Number(process.env.TAURI_WEBDRIVER_PORT)
+  : 4_457;
+if (!Number.isInteger(embeddedPort) || embeddedPort < 1 || embeddedPort > 65_535) {
+  throw new Error("TAURI_WEBDRIVER_PORT must be an integer from 1 to 65535");
+}
+process.env.TAURI_WEBDRIVER_PORT = String(embeddedPort);
 
 export const config = {
   runner: "local",
@@ -12,6 +19,7 @@ export const config = {
     "phase1-matrix": ["./tests/e2e/overlay.e2e.ts"],
     "phase2-matrix": ["./tests/e2e/display-topology.e2e.ts"],
     "phase3-tools": ["./tests/e2e/core-annotation-tools.e2e.ts"],
+    "phase4-editing": ["./tests/e2e/editing-ink-lifecycle.e2e.ts"],
   },
   maxInstances: 1,
   logLevel: "info",
@@ -24,6 +32,7 @@ export const config = {
   reporters: ["spec"],
   services: [["@wdio/tauri-service", {
     driverProvider: "embedded",
+    embeddedPort,
     appBinaryPath: application,
     windowLabel: "overlay",
     startTimeout: 90_000,

@@ -30,6 +30,24 @@ export type AnnotationStyle = Readonly<{
   textSize: number;
 }>;
 
+export const ANNOTATION_LIFECYCLE_MODES = ["persistent", "vanishing"] as const;
+export type AnnotationLifecycleMode = (typeof ANNOTATION_LIFECYCLE_MODES)[number];
+export const VANISHING_DURATION_PRESETS = [1, 3, 5, 10, 30] as const;
+export const DEFAULT_VANISHING_DURATION_SECONDS = 3;
+export const MIN_VANISHING_DURATION_SECONDS = 1;
+export const MAX_VANISHING_DURATION_SECONDS = 3_600;
+
+export type AnnotationLifecycleSnapshot =
+  | Readonly<{ mode: "persistent"; committedAtMs?: number }>
+  | Readonly<{ mode: "vanishing"; durationSeconds: number; committedAtMs?: number }>;
+
+export function isValidVanishingDuration(value: unknown): value is number {
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && value >= MIN_VANISHING_DURATION_SECONDS
+    && value <= MAX_VANISHING_DURATION_SECONDS;
+}
+
 export const DEFAULT_PEN_STYLE: AnnotationStyle = {
   color: "#ef4444",
   opacity: 0.92,
@@ -54,6 +72,8 @@ export type StrokeSceneItem = Readonly<{
   tool: StrokeTool;
   points: readonly StrokePoint[];
   style: AnnotationStyle;
+  /** Optional only for snapshots produced by pre-lifecycle clients. */
+  lifecycle?: AnnotationLifecycleSnapshot;
 }>;
 
 export type LineGeometry = Readonly<{
@@ -89,6 +109,8 @@ export type ShapeSceneItem = Readonly<{
   tool: ShapeTool;
   geometry: SceneGeometry;
   style: AnnotationStyle;
+  /** Optional only for snapshots produced by pre-lifecycle clients. */
+  lifecycle?: AnnotationLifecycleSnapshot;
 }>;
 export type GeometrySceneItem = ShapeSceneItem;
 
@@ -99,12 +121,15 @@ export type TextSceneItem = Readonly<{
   anchor: CanonicalPoint;
   text: string;
   style: AnnotationStyle;
+  /** Optional only for snapshots produced by pre-lifecycle clients. */
+  lifecycle?: AnnotationLifecycleSnapshot;
 }>;
 
 export type TextDraft = Readonly<{
   anchor: CanonicalPoint;
   value: string;
   style: AnnotationStyle;
+  lifecycle?: AnnotationLifecycleSnapshot;
 }>;
 
 export type SceneItem = StrokeSceneItem | ShapeSceneItem | TextSceneItem;

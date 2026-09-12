@@ -19,6 +19,9 @@ import {
   transientStrokeForSamples,
   viewportBackingSize,
   viewportToCanonical,
+  sceneItemExpiryDeadlineMs,
+  sceneItemOpacityMultiplier,
+  VANISHING_FADE_WINDOW_MS,
 } from "./OverlaySurface";
 
 const viewport = {
@@ -54,6 +57,51 @@ describe("OverlaySurface scene helpers", () => {
     expect(appendStroke(scene, stroke)).toEqual(scene);
     expect(scene).toHaveLength(1);
     expect(scene[0]).toEqual(stroke);
+  });
+
+  it("holds vanishing items until the final second, fades linearly, and filters at the deadline", () => {
+    const item = createStroke("vanishing", [{ x: 0, y: 0 }, { x: 1, y: 1 }], undefined, "pen", {
+      mode: "vanishing",
+      durationSeconds: 3,
+      committedAtMs: 1_000,
+    });
+    const deadline = 4_000;
+
+    expect(VANISHING_FADE_WINDOW_MS).toBe(1_000);
+    expect(sceneItemExpiryDeadlineMs(item)).toBe(deadline);
+    expect(sceneItemOpacityMultiplier(item, 2_999)).toBe(1);
+    expect(sceneItemOpacityMultiplier(item, 3_000)).toBe(1);
+    expect(sceneItemOpacityMultiplier(item, 3_500)).toBe(0.5);
+    expect(sceneItemOpacityMultiplier(item, 3_999)).toBeCloseTo(0.001);
+    expect(sceneItemOpacityMultiplier(item, deadline)).toBe(0);
+    expect(sceneItemOpacityMultiplier(createStroke("persistent", [{ x: 0, y: 0 }, { x: 1, y: 1 }]), deadline)).toBe(1);
+  });
+
+  it("draws at a deterministic lifecycle opacity and does not mutate an expired retained item", () => {
+    const observedAlpha: number[] = [];
+    const context = {
+      clearRect: () => undefined,
+      beginPath: () => undefined,
+      moveTo: () => undefined,
+      lineTo: () => undefined,
+      stroke: function (this: { globalAlpha: number }) { observedAlpha.push(this.globalAlpha); },
+      strokeStyle: "",
+      lineWidth: 0,
+      lineCap: "round" as CanvasLineCap,
+      lineJoin: "round" as CanvasLineJoin,
+      globalAlpha: 1,
+      globalCompositeOperation: "source-over",
+    };
+    const item = createStroke("fade", [{ x: 0, y: 0 }, { x: 1, y: 1 }], {
+      color: "#ef4444", opacity: 0.8, width: 2, fill: "none", fillColor: "#ef4444", fillOpacity: 0.2, textSize: 24,
+    }, "pen", { mode: "vanishing", durationSeconds: 3, committedAtMs: 1_000 });
+    const retained = [item];
+
+    drawScene(context, retained, 100, 100, undefined, undefined, undefined, 3_500);
+    expect(observedAlpha).toEqual([0.4]);
+    drawScene(context, retained, 100, 100, undefined, undefined, undefined, 4_000);
+    expect(observedAlpha).toEqual([0.4]);
+    expect(retained).toEqual([item]);
   });
 
   it("converts negative-origin canonical points through a rotated viewport and back", () => {

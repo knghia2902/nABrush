@@ -1,6 +1,8 @@
 import { TOOL_ORDER } from "../types/platform-parity";
 import type {
   AnnotationStyle,
+  AnnotationLifecycleMode,
+  AnnotationLifecycleSnapshot,
   CanonicalPoint,
   EllipseGeometry,
   SceneItem,
@@ -9,6 +11,10 @@ import type {
   StrokeSceneItem,
   TextDraft,
   TextSceneItem,
+} from "../types/overlay";
+import {
+  DEFAULT_VANISHING_DURATION_SECONDS,
+  isValidVanishingDuration,
 } from "../types/overlay";
 import type { AnnotationTool } from "../types/platform-parity";
 
@@ -47,6 +53,8 @@ export const DEFAULT_TOOL_STYLES: Readonly<Record<AnnotationTool, AnnotationStyl
 export type AnnotationState = Readonly<{
   activeTool: AnnotationTool;
   stylesByTool: Readonly<Record<AnnotationTool, AnnotationStyle>>;
+  lifecycleMode: AnnotationLifecycleMode;
+  vanishingDurationSeconds: number;
   textDraft: TextDraft | null;
   hoveredItemId: string | null;
 }>;
@@ -81,7 +89,29 @@ export function createInitialAnnotationState(): AnnotationState {
   const stylesByTool = Object.fromEntries(
     TOOL_ORDER.map((tool) => [tool, { ...DEFAULT_TOOL_STYLES[tool] }]),
   ) as Record<AnnotationTool, AnnotationStyle>;
-  return { activeTool: "pen", stylesByTool, textDraft: null, hoveredItemId: null };
+  return {
+    activeTool: "pen",
+    stylesByTool,
+    lifecycleMode: "persistent",
+    vanishingDurationSeconds: DEFAULT_VANISHING_DURATION_SECONDS,
+    textDraft: null,
+    hoveredItemId: null,
+  };
+}
+
+export function selectLifecycleMode(state: AnnotationState, lifecycleMode: AnnotationLifecycleMode): AnnotationState {
+  return state.lifecycleMode === lifecycleMode ? state : { ...state, lifecycleMode };
+}
+
+export function setVanishingDuration(state: AnnotationState, durationSeconds: number): AnnotationState {
+  if (!isValidVanishingDuration(durationSeconds) || state.vanishingDurationSeconds === durationSeconds) return state;
+  return { ...state, vanishingDurationSeconds: durationSeconds };
+}
+
+export function lifecycleSnapshotFor(state: Pick<AnnotationState, "lifecycleMode" | "vanishingDurationSeconds">): AnnotationLifecycleSnapshot {
+  return state.lifecycleMode === "vanishing"
+    ? { mode: "vanishing", durationSeconds: state.vanishingDurationSeconds }
+    : { mode: "persistent" };
 }
 
 export function selectAnnotationTool(state: AnnotationState, activeTool: AnnotationTool): AnnotationState {
@@ -106,7 +136,7 @@ export const HIT_TEST_PADDING = 6;
 export const TEXT_LINE_HEIGHT = 1.2;
 
 export type TextDraftAction =
-  | { type: "place"; anchor: CanonicalPoint; style: AnnotationStyle }
+  | { type: "place"; anchor: CanonicalPoint; style: AnnotationStyle; lifecycle?: AnnotationLifecycleSnapshot }
   | { type: "update"; value: string }
   | { type: "insert-newline" }
   | { type: "commit"; isComposing?: boolean }
@@ -115,7 +145,12 @@ export type TextDraftAction =
 export function textDraftTransition(draft: TextDraft | null, action: TextDraftAction): TextDraft | null {
   switch (action.type) {
     case "place":
-      return { anchor: { ...action.anchor }, value: "", style: { ...action.style } };
+      return {
+        anchor: { ...action.anchor },
+        value: "",
+        style: { ...action.style },
+        lifecycle: action.lifecycle ?? { mode: "persistent" },
+      };
     case "update":
       return draft ? { ...draft, value: action.value } : draft;
     case "insert-newline":
@@ -174,6 +209,7 @@ export function createTextItem(id: string, draft: TextDraft): TextSceneItem {
     anchor: { ...draft.anchor },
     text: draft.value,
     style: { ...draft.style },
+    lifecycle: draft.lifecycle ?? { mode: "persistent" },
   };
 }
 
