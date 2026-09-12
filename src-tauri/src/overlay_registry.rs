@@ -1248,6 +1248,87 @@ mod tests {
     }
 
     #[test]
+    fn scene_store_expires_mixed_items_at_independent_deadlines_without_reordering_or_merging_geometry() {
+        let mut scene = SceneStore::default();
+        assert_eq!(scene.expire_due_items(0), None);
+        let style = serde_json::json!({
+            "color":"#334155","opacity":0.92,"width":2.0,"fill":"none",
+            "fillColor":"#334155","fillOpacity":0.18,"textSize":24.0
+        });
+        let persistent = serde_json::json!({
+            "id":"persistent","kind":"stroke","tool":"pen",
+            "points":[{"x":1.0,"y":2.0},{"x":3.0,"y":4.0}],"style":style
+        });
+        let vanishing_stroke = |id: &str, tool: &str, duration: f64| serde_json::json!({
+            "id":id,"kind":"stroke","tool":tool,
+            "points":[{"x":1.0,"y":2.0},{"x":3.0,"y":4.0}],"style":style,
+            "lifecycle":{"mode":"vanishing","durationSeconds":duration}
+        });
+        let rectangle = |id: &str, x: f64, duration: f64| serde_json::json!({
+            "id":id,"kind":"shape","tool":"rectangle",
+            "geometry":{"type":"rectangle","x":x,"y":20.0,"width":10.0,"height":10.0},"style":style,
+            "lifecycle":{"mode":"vanishing","durationSeconds":duration}
+        });
+
+        scene.commit_scene_item_at(persistent, 100).unwrap();
+        scene.commit_scene_item_at(vanishing_stroke("pen", "pen", 2.0), 1_000).unwrap();
+        // Identical geometry remains two distinct retained annotations.
+        scene.commit_scene_item_at(rectangle("rectangle-a", 20.0, 3.0), 1_500).unwrap();
+        scene.commit_scene_item_at(rectangle("rectangle-b", 20.0, 3.0), 1_500).unwrap();
+        // This rectangle only touches the equal rectangles at their edges.
+        scene.commit_scene_item_at(rectangle("rectangle-touching", 30.0, 2.5), 2_000).unwrap();
+        // Different commit time and duration, same expiry deadline as the pen.
+        scene.commit_scene_item_at(vanishing_stroke("highlighter", "highlighter", 1.0), 2_000).unwrap();
+
+        let before_expiry = scene.snapshot();
+        assert_eq!(before_expiry.items.len(), 6);
+        assert!(matches!(scene.expire_due_items(2_999), None));
+        let at_first_deadline = scene.expire_due_items(3_000).unwrap();
+        assert_eq!(at_first_deadline.items.iter().map(SceneItem::id).collect::<Vec<_>>(), [
+            "persistent", "rectangle-a", "rectangle-b", "rectangle-touching",
+        ]);
+        assert!(matches!(at_first_deadline.items[1], SceneItem::Shape { ref id, .. } if id == "rectangle-a"));
+        assert!(matches!(at_first_deadline.items[2], SceneItem::Shape { ref id, .. } if id == "rectangle-b"));
+        assert!(matches!(scene.expire_due_items(4_499), None));
+        let after_shapes_expire = scene.expire_due_items(4_500).unwrap();
+        assert_eq!(after_shapes_expire.items.iter().map(SceneItem::id).collect::<Vec<_>>(), ["persistent"]);
+        assert_eq!(scene.expire_due_items(10_000), None);
+    }
+
+    #[test]
+    fn scene_store_preserves_long_unicode_text_exactly_and_expires_only_by_its_lifecycle_clock() {
+        let mut scene = SceneStore::default();
+        let text = "👩🏽‍💻 e\u{301} नमस्ते".repeat(96);
+        let item = serde_json::json!({
+            "id":"unicode-text","kind":"text","tool":"text",
+            "anchor":{"x":10.0,"y":20.0},"text":text,"style":{
+                "color":"#334155","opacity":0.92,"width":2.0,"fill":"none",
+                "fillColor":"#334155","fillOpacity":0.18,"textSize":24.0
+            },"lifecycle":{"mode":"vanishing","durationSeconds":1.0}
+        });
+        let committed = scene.commit_scene_item_at(item, 10_000).unwrap();
+        let short = scene.commit_scene_item_at(serde_json::json!({
+            "id":"short-text","kind":"text","tool":"text",
+            "anchor":{"x":10.0,"y":20.0},"text":"x","style":{
+                "color":"#334155","opacity":0.92,"width":2.0,"fill":"none",
+                "fillColor":"#334155","fillOpacity":0.18,"textSize":24.0
+            },"lifecycle":{"mode":"vanishing","durationSeconds":1.0}
+        }), 10_000).unwrap();
+        match &committed.items[0] {
+            SceneItem::Text { text: stored, lifecycle, .. } => {
+                assert_eq!(stored, &text);
+                assert!(matches!(lifecycle, AnnotationLifecycleSnapshot::Vanishing {
+                    duration_seconds: 1.0, committed_at_ms: Some(10_000)
+                }));
+            }
+            other => panic!("expected committed text item, got {other:?}"),
+        }
+        assert!(matches!(&short.items[1], SceneItem::Text { text: stored, .. } if stored == "x"));
+        assert_eq!(scene.expire_due_items(10_999), None);
+        assert_eq!(scene.expire_due_items(11_000).unwrap().items.len(), 0);
+    }
+
+    #[test]
     fn scene_store_accepts_typed_pen_and_highlighter_items_with_style_snapshots() {
         let mut scene = SceneStore::default();
         let pen = serde_json::json!({

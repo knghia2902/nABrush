@@ -177,6 +177,26 @@ describe("annotation tool state", () => {
     expect(textBounds(item, metric).lineWidths).toEqual([50]);
   });
 
+  it("preserves Unicode text and the lifecycle snapshot captured when its draft was placed", () => {
+    const exactText = "👩🏽‍💻 e\u0301 — नमस्ते";
+    const selected = setVanishingDuration(selectLifecycleMode(createInitialAnnotationState(), "vanishing"), 5);
+    const placed = textDraftTransition(null, {
+      type: "place",
+      anchor: draft.anchor,
+      style: textStyle,
+      lifecycle: lifecycleSnapshotFor(selected),
+    });
+    expect(placed).not.toBeNull();
+    const typed = textDraftTransition(placed, { type: "update", value: exactText });
+    const changedControls = setVanishingDuration(selected, 1);
+    const item = createTextItem("unicode-text", typed!);
+
+    expect(item.text).toBe(exactText);
+    expect([...item.text]).toEqual([...exactText]);
+    expect(item.lifecycle).toEqual({ mode: "vanishing", durationSeconds: 5 });
+    expect(lifecycleSnapshotFor(changedControls)).toEqual({ mode: "vanishing", durationSeconds: 1 });
+  });
+
   it("uses type-specific padded hit areas and reverse scene order", () => {
     expect(HIT_TEST_PADDING).toBe(6);
     expect(hitTestSceneItem(stroke("stroke"), { x: 50, y: 16 })).toBe(true);

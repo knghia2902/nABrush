@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OverlayMode, SceneItem } from "../types/overlay";
+import { createTextItem } from "../state/annotation";
 import {
   arrowheadPath,
   appendStroke,
@@ -102,6 +103,41 @@ describe("OverlaySurface scene helpers", () => {
     drawScene(context, retained, 100, 100, undefined, undefined, undefined, 4_000);
     expect(observedAlpha).toEqual([0.4]);
     expect(retained).toEqual([item]);
+  });
+
+  it("keeps independent deadlines for every created annotation kind and never expires Persistent items", () => {
+    const lifecycle = (durationSeconds: number, committedAtMs: number) => ({
+      mode: "vanishing" as const,
+      durationSeconds,
+      committedAtMs,
+    });
+    const style = {
+      color: "#334155", opacity: 0.8, width: 2, fill: "none" as const,
+      fillColor: "#334155", fillOpacity: 0.18, textSize: 24,
+    };
+    const items: SceneItem[] = [
+      createStroke("persistent", [{ x: 1, y: 1 }, { x: 5, y: 5 }]),
+      createStroke("pen", [{ x: 1, y: 1 }, { x: 5, y: 5 }], style, "pen", lifecycle(2, 1_000)),
+      createStroke("highlighter", [{ x: 1, y: 1 }, { x: 5, y: 5 }], style, "highlighter", lifecycle(5, 2_000)),
+      createGeometryItem("line", "line", { type: "line", start: { x: 0, y: 0 }, end: { x: 8, y: 8 } }, style, lifecycle(3, 1_500)),
+      createGeometryItem("arrow", "arrow", { type: "line", start: { x: 0, y: 0 }, end: { x: 8, y: 8 } }, style, lifecycle(4, 1_000)),
+      createShapeItem("rectangle", "rectangle", { type: "rectangle", x: 1, y: 1, width: 8, height: 8 }, style, lifecycle(1, 2_000)),
+      createShapeItem("ellipse", "ellipse", { type: "ellipse", center: { x: 5, y: 5 }, radiusX: 4, radiusY: 4 }, style, lifecycle(6, 1_000)),
+      createTextItem("text", {
+        anchor: { x: 1, y: 1 }, value: "e\u0301👩🏽‍💻", style, lifecycle: lifecycle(2, 2_000),
+      }),
+    ];
+
+    expect(items.map(sceneItemExpiryDeadlineMs)).toEqual([null, 3_000, 7_000, 4_500, 5_000, 3_000, 7_000, 4_000]);
+    expect(items.map((item) => item.id)).toEqual([
+      "persistent", "pen", "highlighter", "line", "arrow", "rectangle", "ellipse", "text",
+    ]);
+    expect(items[7]).toMatchObject({ text: "e\u0301👩🏽‍💻", lifecycle: { mode: "vanishing", durationSeconds: 2, committedAtMs: 2_000 } });
+    expect(sceneItemOpacityMultiplier(items[1]!, 1_999)).toBe(1);
+    expect(sceneItemOpacityMultiplier(items[1]!, 2_999)).toBeCloseTo(0.001);
+    expect(sceneItemOpacityMultiplier(items[1]!, 3_000)).toBe(0);
+    expect(sceneItemExpiryDeadlineMs(items[0]!)).toBeNull();
+    expect(sceneItemOpacityMultiplier(items[0]!, Number.MAX_SAFE_INTEGER)).toBe(1);
   });
 
   it("converts negative-origin canonical points through a rotated viewport and back", () => {

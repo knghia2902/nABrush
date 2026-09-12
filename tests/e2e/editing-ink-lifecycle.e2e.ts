@@ -82,6 +82,22 @@ async function drawPen(start: Point, end: Point, expectedCount: number) {
   await browser.releaseActions();
 }
 
+async function drawToolGesture(tool: string, start: Point, end: Point) {
+  await ensureGeneratedOverlayInteractionTarget(`vanishing ${tool} annotation`);
+  await browser.performActions([{
+    type: "pointer",
+    id: `phase4-lifecycle-${tool}`,
+    parameters: { pointerType: "mouse" },
+    actions: [
+      { type: "pointerMove", duration: 0, x: start.x, y: start.y },
+      { type: "pointerDown", button: 0 },
+      { type: "pointerMove", duration: 180, x: end.x, y: end.y },
+      { type: "pointerUp", button: 0 },
+    ],
+  }]);
+  await browser.releaseActions();
+}
+
 async function setVanishingDuration(seconds: number) {
   const preset = await browser.$('[data-lifecycle-preset="true"]');
   await preset.waitForDisplayed();
@@ -262,5 +278,81 @@ describe("Phase 4 editing and ink lifecycle", () => {
     expect((await nativeSnapshot()).items.some((candidate) => candidate.id === hiddenId)).toBe(false);
     expect(await browser.execute(() => document.querySelector("main")?.getAttribute("data-scene-ids")))
       .not.toContain(hiddenId);
+  });
+
+  it("stamps each drawable tool family with its own style and vanishing snapshot, preserving Unicode text", async () => {
+    const lifecycleToggle = await browser.$('[data-lifecycle-toggle="true"]');
+    await browser.waitUntil(async () => await lifecycleToggle.isExisting(), { timeout: 10_000 });
+    if (await lifecycleToggle.getAttribute("data-lifecycle-mode") !== "vanishing") await lifecycleToggle.click();
+    await browser.waitUntil(async () => await lifecycleToggle.getAttribute("data-lifecycle-mode") === "vanishing", {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Could not select Vanishing lifecycle mode for all-tool coverage`,
+    });
+    await setVanishingDuration(30);
+
+    const expectations = [
+      { tool: "pen", kind: "stroke", style: { color: "#ef4444", opacity: 0.92, width: 2, fill: "none", fillColor: "#ef4444", fillOpacity: 0.18, textSize: 24 } },
+      { tool: "highlighter", kind: "stroke", style: { color: "#facc15", opacity: 0.35, width: 12, fill: "none", fillColor: "#facc15", fillOpacity: 0.18, textSize: 24 } },
+      ...(["line", "arrow", "rectangle", "ellipse", "text"] as const).map((tool) => ({
+        tool,
+        kind: tool === "text" ? "text" : "shape",
+        style: { color: "#334155", opacity: 0.92, width: 2, fill: "none", fillColor: "#334155", fillOpacity: 0.18, textSize: 24 },
+      })),
+    ];
+    const seenIds = new Set((await nativeSnapshot()).items.map((item) => item.id));
+    const createdIds = new Set<string>();
+    const itemDeadlines: number[] = [];
+
+    for (const [index, expected] of expectations.entries()) {
+      await (await browser.$(`[data-tool="${expected.tool}"]`)).click();
+      const start = await canvasPoint(0.18 + index * 0.055, 0.32 + (index % 3) * 0.12);
+      if (expected.tool === "text") {
+        await drawToolGesture(expected.tool, start, start);
+        const editor = await browser.$('[data-text-draft="true"]');
+        await editor.waitForDisplayed({ timeout: 5_000 });
+        await editor.addValue("👩🏽‍💻 e\u0301");
+        await expect(editor).toHaveValue("👩🏽‍💻 e\u0301");
+        await browser.keys("Enter");
+      } else {
+        const end = await canvasPoint(0.32 + index * 0.055, 0.42 + (index % 3) * 0.12);
+        await drawToolGesture(expected.tool, start, end);
+      }
+
+      let item: SceneSnapshot["items"][number] | undefined;
+      await browser.waitUntil(async () => {
+        const snapshot = await nativeSnapshot();
+        item = snapshot.items.find((candidate) => !seenIds.has(candidate.id) && candidate.tool === expected.tool);
+        return item !== undefined;
+      }, {
+        timeout: 10_000,
+        timeoutMsg: `[${hostLabel()}] Native scene did not commit a ${expected.tool} item`,
+      });
+      if (!item) throw new Error(`[${hostLabel()}] Missing committed ${expected.tool} item`);
+      expect(item.kind).toBe(expected.kind);
+      expect(item.tool).toBe(expected.tool);
+      expect(item.style).toEqual(expected.style);
+      expect(item.lifecycle).toMatchObject({ mode: "vanishing", durationSeconds: 30 });
+      expect(item.lifecycle?.committedAtMs).toEqual(expect.any(Number));
+      if (expected.tool === "text") {
+        expect(item.kind).toBe("text");
+        if (item.kind === "text") expect(item.text).toBe("👩🏽‍💻 e\u0301");
+      }
+      seenIds.add(item.id);
+      createdIds.add(item.id);
+      itemDeadlines.push(Number(item.lifecycle?.committedAtMs) + 30_000);
+    }
+
+    const latestDeadline = Math.max(...itemDeadlines);
+    await browser.waitUntil(async () => Date.now() >= latestDeadline + 200, {
+      timeout: 35_000,
+      timeoutMsg: `[${hostLabel()}] Did not reach the latest independent annotation deadline`,
+    });
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return [...createdIds].every((id) => !snapshot.items.some((item) => item.id === id));
+    }, {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] One or more drawable annotation families remained after their native deadlines`,
+    });
   });
 });
