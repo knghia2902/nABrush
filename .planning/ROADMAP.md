@@ -117,11 +117,11 @@ Plans:
 Plans:
 
 - [x] 04-01-PLAN.md — Vanishing lifecycle tracer, native expiry, and all-tool lifecycle metadata
-- [ ] 04-02-PLAN.md — Canonical undo/redo, clear-all, text editing, and per-tool style invariants
+- [x] 04-02-PLAN.md — Canonical undo/redo, clear-all, text editing, and per-tool style invariants
 
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Vanishing lifecycle tracer, native expiry, and all-tool lifecycle metadata
+- [x] 04-01-PLAN.md — Vanishing lifecycle tracer, native expiry, and all-tool lifecycle metadata
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -248,6 +248,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Native Overlay & Activation | 11/11 | Complete    | 2026-09-10 |
 | 2. Display Topology & Platform Parity | 0/TBD | Not started | - |
 | 3. Core Annotation Tools | 8/8 | In Progress|  |
-| 4. Editing & Ink Lifecycle | 1/2 | In Progress|  |
+| 4. Editing & Ink Lifecycle | 2/2 | In Progress|  |
 | 5. Capture & Export | 0/TBD | Not started | - |
 | 6. Signed Release Hardening | 0/TBD | Not started | - |

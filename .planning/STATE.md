@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Editing & Ink Lifecycle
 current_plan: 2
-status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-09-12T04:34:03.687Z"
+status: verifying
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-09-12T05:48:03.794Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 04 execution started
-state_head: 3bc05cc0c59011a56702c0abd7bd6d41bc1f3b1a
+state_head: 4b69debfa5ca531d267c8738a1f5bd207ec2bd09
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 29
-  completed_plans: 24
+  completed_plans: 25
   percent: 17
 ---
 
@@ -33,7 +33,7 @@ Total Plans in Phase: 2
 
 Phase: 04 (Editing & Ink Lifecycle) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-12 — Phase 04 execution started
 
 Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
@@ -68,6 +68,7 @@ Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
 | Phase 03 P07 | 12 min | 2 tasks | 2 files |
 | Phase 03 P08 | 5 min | 2 tasks | 2 files |
 | Phase 04 P01 | 69 | 2 tasks | 13 files |
+| Phase 04 P02 | 57 | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Treat COVERED in the four-source audit as traceability only; do not convert macOS or local results into Windows or native/manual proof.
 - [Phase 04]: Snapshot lifecycle mode and duration when each annotation is committed; later toolbar changes affect only future items.
 - [Phase 04]: Keep expiry in the canonical native scene and use native lifecycle-frame events to drive final-second redraws independently of visibility.
+- [Phase 04]: Phase 04-02: Keep native SceneStore as the sole history source and restore complete ordered snapshots with style/lifecycle metadata.
+- [Phase 04]: Phase 04-02: Expiry creates no history entry; item creation remains the undo/redo operation after expiry.
+- [Phase 04]: Phase 04-02: Keep stylesByTool as the sole in-session style memory, independent of historical scene contents.
 
 ### Pending Todos
 
@@ -121,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-12T04:34:03.623Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-09-12T05:48:03.722Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
