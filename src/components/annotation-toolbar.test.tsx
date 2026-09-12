@@ -124,6 +124,9 @@ describe("AnnotationToolbar", () => {
     expect(empty).toContain('aria-keyshortcuts="Meta+Y Control+Y"');
     expect(empty).toContain('aria-label="Clear all annotations"');
     expect(empty).toContain('data-history-clear="true"');
+    expect(empty).toMatch(/data-history-undo="true"[^>]*data-scene-excluded="true"/);
+    expect(empty).toMatch(/data-history-redo="true"[^>]*data-scene-excluded="true"/);
+    expect(empty).toMatch(/data-history-clear="true"[^>]*data-scene-excluded="true"/);
     expect(empty).toMatch(/data-history-undo="true"[^>]*disabled=""/);
     expect(empty).toMatch(/data-history-redo="true"[^>]*disabled=""/);
     expect(empty).toMatch(/data-history-clear="true"[^>]*disabled=""/);

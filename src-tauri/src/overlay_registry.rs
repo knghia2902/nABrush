@@ -1395,6 +1395,65 @@ mod tests {
     }
 
     #[test]
+    fn scene_store_expiry_adds_no_history_and_expired_creation_remains_undoable_and_redoable() {
+        let mut scene = SceneStore::default();
+        let item = serde_json::json!({
+            "id":"short-lived","kind":"stroke","tool":"pen",
+            "points":[{"x":1.0,"y":2.0},{"x":3.0,"y":4.0}],
+            "style":{"color":"#334155","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#334155","fillOpacity":0.18,"textSize":24.0},
+            "lifecycle":{"mode":"vanishing","durationSeconds":2.0}
+        });
+        let created = scene.commit_scene_item_at(item, 1_000).unwrap();
+        assert_eq!(scene.expire_due_items(2_999), None);
+        let expired = scene.expire_due_items(3_000).unwrap();
+        assert!(expired.items.is_empty());
+        assert!(expired.can_undo);
+        assert!(!expired.can_redo);
+
+        let undone = scene.undo_scene().unwrap().unwrap();
+        assert!(undone.items.is_empty());
+        assert!(undone.can_redo);
+        let redone = scene.redo_scene().unwrap().unwrap();
+        assert_eq!(redone.items, created.items);
+        assert!(redone.can_undo);
+        assert!(scene.expire_due_items(3_000).unwrap().items.is_empty());
+        assert!(scene.undo_scene().unwrap().unwrap().items.is_empty());
+        assert!(!scene.snapshot().can_undo);
+    }
+
+    #[test]
+    fn scene_store_history_keeps_identical_and_touching_shapes_distinct_in_stable_vector_order() {
+        let mut scene = SceneStore::default();
+        let shape = |id: &str, x: f64| serde_json::json!({
+            "id":id,"kind":"shape","tool":"rectangle",
+            "geometry":{"type":"rectangle","x":x,"y":20.0,"width":10.0,"height":10.0},
+            "style":{"color":"#334155","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#334155","fillOpacity":0.18,"textSize":24.0},
+            "lifecycle":{"mode":"vanishing","durationSeconds":5.0}
+        });
+        scene.commit_scene_item_at(shape("same-a", 20.0), 1_000).unwrap();
+        scene.commit_scene_item_at(shape("same-b", 20.0), 1_000).unwrap();
+        let all = scene.commit_scene_item_at(shape("touching", 30.0), 1_000).unwrap();
+        let expected = vec!["same-a", "same-b", "touching"];
+        assert_eq!(all.items.iter().map(SceneItem::id).collect::<Vec<_>>(), expected);
+        assert!(matches!(
+            (&all.items[0], &all.items[1]),
+            (SceneItem::Shape { geometry: left, lifecycle: left_lifecycle, .. },
+             SceneItem::Shape { geometry: right, lifecycle: right_lifecycle, .. })
+                if left == right && left_lifecycle == right_lifecycle
+        ));
+
+        for remaining in [2, 1, 0] {
+            let undone = scene.undo_scene().unwrap().unwrap();
+            assert_eq!(undone.items.len(), remaining);
+            assert_eq!(undone.items.iter().map(SceneItem::id).collect::<Vec<_>>(), expected[..remaining]);
+        }
+        for remaining in 1..=3 {
+            let redone = scene.redo_scene().unwrap().unwrap();
+            assert_eq!(redone.items.iter().map(SceneItem::id).collect::<Vec<_>>(), expected[..remaining]);
+        }
+    }
+
+    #[test]
     fn scene_store_preserves_long_unicode_text_exactly_and_expires_only_by_its_lifecycle_clock() {
         let mut scene = SceneStore::default();
         let text = "👩🏽‍💻 e\u{301} नमस्ते".repeat(96);
@@ -1658,6 +1717,20 @@ mod tests {
     }
 
     #[test]
+    fn scene_store_same_anchor_text_move_does_not_create_history() {
+        let mut scene = SceneStore::default();
+        scene.commit_scene_item(serde_json::json!({
+            "id":"text-1","kind":"text","tool":"text",
+            "anchor":{"x":100.0,"y":100.0},"text":"label",
+            "style":{"color":"#334155","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#334155","fillOpacity":0.18,"textSize":24.0}
+        })).unwrap();
+        let before = scene.snapshot();
+        assert_eq!(scene.past.len(), 1);
+        assert_eq!(scene.move_text_scene_item("text-1", ScenePoint { x: 100.0, y: 100.0 }).unwrap(), before);
+        assert_eq!(scene.past.len(), 1);
+    }
+
+    #[test]
     fn scene_store_undo_redo_tracks_erase_clear_and_redo_branch_invalidation() {
         let mut scene = SceneStore::default();
         let style = serde_json::json!({
@@ -1725,5 +1798,23 @@ mod tests {
         }
         assert!(!scene.snapshot().can_redo);
         assert_eq!(scene.snapshot().items.len(), MAX_HISTORY_DEPTH + 1);
+    }
+
+    #[test]
+    fn scene_store_rejects_invalid_history_snapshot_without_consuming_the_entry() {
+        let mut scene = SceneStore::default();
+        scene.commit_scene_item_at(serde_json::json!({
+            "id":"single","kind":"stroke","tool":"pen",
+            "points":[{"x":1.0,"y":2.0}],
+            "style":{"color":"#ef4444","opacity":0.92,"width":2.0,"fill":"none","fillColor":"#ef4444","fillOpacity":0.18,"textSize":24.0}
+        }), 1_000).unwrap();
+        let current = scene.snapshot();
+        let history_len = scene.past.len();
+        let duplicate = scene.items[0].clone();
+        scene.past.last_mut().unwrap().before = vec![duplicate.clone(), duplicate];
+
+        assert!(scene.undo_scene().is_err());
+        assert_eq!(scene.snapshot(), current);
+        assert_eq!(scene.past.len(), history_len);
     }
 }

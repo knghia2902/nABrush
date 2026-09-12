@@ -153,6 +153,40 @@ describe("annotation tool state", () => {
     expect(initial.stylesByTool.ellipse).toMatchObject({ fill: "none", fillColor: "#334155", fillOpacity: 0.18 });
   });
 
+  it("retains independent defaults and style patches for every tool family", () => {
+    const patches: Record<(typeof TOOL_ORDER)[number], Partial<AnnotationStyle>> = {
+      pen: { color: "#ef1010", width: 3, opacity: 0.81 },
+      highlighter: { color: "#f0d000", width: 14, opacity: 0.41 },
+      line: { color: "#0011ee", width: 4, opacity: 0.71 },
+      arrow: { color: "#11aa22", width: 5, opacity: 0.61 },
+      rectangle: { color: "#aa1133", width: 6, opacity: 0.51, fill: "solid", fillColor: "#bb2244", fillOpacity: 0.31 },
+      ellipse: { color: "#33aa55", width: 7, opacity: 0.49, fill: "solid", fillColor: "#44bb66", fillOpacity: 0.29 },
+      text: { color: "#5533aa", width: 2, opacity: 0.89, textSize: 31 },
+      eraser: { color: "#884411", width: 9, opacity: 0.37 },
+    };
+    let state = createInitialAnnotationState();
+    const remembered = new Map<(typeof TOOL_ORDER)[number], AnnotationStyle>();
+
+    for (const tool of TOOL_ORDER) {
+      const before = state;
+      state = updateToolStyle(state, tool, patches[tool]);
+      remembered.set(tool, state.stylesByTool[tool]);
+      state = selectAnnotationTool(state, tool);
+      expect(state.stylesByTool[tool]).toEqual(remembered.get(tool));
+      for (const other of TOOL_ORDER) {
+        if (other !== tool) expect(state.stylesByTool[other]).toEqual(before.stylesByTool[other]);
+      }
+    }
+
+    for (const tool of [...TOOL_ORDER].reverse()) {
+      state = selectAnnotationTool(state, tool);
+      expect(state.stylesByTool[tool]).toEqual(remembered.get(tool));
+    }
+    expect(state.stylesByTool.text.textSize).toBe(31);
+    expect(state.stylesByTool.rectangle.fillColor).toBe("#bb2244");
+    expect(state.stylesByTool.ellipse.fillColor).toBe("#44bb66");
+  });
+
   it("keeps geometry threshold and bound normalization pure", () => {
     expect(MIN_GEOMETRY_DRAG).toBe(4);
     expect(isGeometryDragValid({ x: 0, y: 0 }, { x: 3.9, y: 0 })).toBe(false);
