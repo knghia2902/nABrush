@@ -174,7 +174,7 @@ export type TextBounds = Readonly<{
   lineHeight: number;
 }>;
 
-const defaultTextMetric: TextMetricProvider = (line, style) => line.length * style.textSize * 0.6;
+const defaultTextMetric: TextMetricProvider = (line, style) => Array.from(line).length * style.textSize * 0.6;
 
 export function measureTextBounds(
   anchor: CanonicalPoint,

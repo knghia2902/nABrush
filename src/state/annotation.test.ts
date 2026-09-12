@@ -170,6 +170,7 @@ describe("annotation tool state", () => {
     expect(textDraftTransition(draft, { type: "update", value: "hello world" })?.value).toBe("hello world");
     expect(textDraftTransition(draft, { type: "insert-newline" })?.value).toBe("hello\n");
     expect(textDraftTransition(draft, { type: "commit", isComposing: true })).toEqual(draft);
+    expect(textDraftTransition({ ...draft, value: "" }, { type: "commit" })).toEqual({ ...draft, value: "" });
     expect(textDraftTransition({ ...draft, value: "   " }, { type: "commit" })).toEqual({ ...draft, value: "   " });
     expect(textDraftTransition(draft, { type: "commit" })).toBeNull();
     expect(textDraftTransition(draft, { type: "cancel" })).toBeNull();
@@ -186,6 +187,12 @@ describe("annotation tool state", () => {
       lineWidths: [50, 60],
     });
     expect(textBounds(item, metric).lineWidths).toEqual([50]);
+  });
+
+  it("does not split surrogate pairs in fallback text measurement", () => {
+    const emoji = "👩🏽‍💻";
+    const bounds = measureTextBounds(draft.anchor, emoji, textStyle);
+    expect(bounds.width).toBe(Array.from(emoji).length * textStyle.textSize * 0.6);
   });
 
   it("preserves Unicode text and the lifecycle snapshot captured when its draft was placed", () => {

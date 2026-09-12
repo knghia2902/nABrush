@@ -419,7 +419,7 @@ function textFont(style: AnnotationStyle): string {
 
 function canvasTextMetric(context: CanvasRenderContext, line: string, style: AnnotationStyle): number {
   context.font = textFont(style);
-  return context.measureText?.(line)?.width ?? line.length * style.textSize * 0.6;
+  return context.measureText?.(line)?.width ?? Array.from(line).length * style.textSize * 0.6;
 }
 
 export function drawTextItem(
@@ -581,8 +581,10 @@ export function OverlaySurface({
   const pointerSequenceRef = useRef(false);
   const suppressMouseUpRef = useRef(false);
   const suppressTextClickRef = useRef(false);
+  const suppressNextTextDraftRef = useRef(false);
   const textDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
   const textShiftRef = useRef(false);
+  const textDraftCommitHandledRef = useRef(false);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
   const gestureLifecycleRef = useRef<AnnotationLifecycleSnapshot>(lifecycleSnapshot);
@@ -594,7 +596,7 @@ export function OverlaySurface({
 
   const measureTextForHitTest = useCallback((line: string, style: AnnotationStyle): number => {
     const context = canvasRef.current?.getContext("2d");
-    if (!context) return line.length * style.textSize * 0.6;
+    if (!context) return Array.from(line).length * style.textSize * 0.6;
     context.save();
     context.font = textFont(style);
     const width = context.measureText(line).width;
@@ -692,6 +694,13 @@ export function OverlaySurface({
     if (mode !== "VisibleInteractive" || event.button !== 0) return;
     if (activeTool === "text") {
       if (textDraft || pointerIdRef.current !== null) return;
+      if (suppressNextTextDraftRef.current) {
+        suppressNextTextDraftRef.current = false;
+        return;
+      }
+      // A drag can finish without a synthesized click on some native input
+      // paths. Its stale click-suppression flag must not block the next gesture.
+      suppressTextClickRef.current = false;
       const point = eventPoint(event);
       if (!point) return;
       const targetId = findTopmostHit(scene, point, { hitPadding: HIT_TEST_PADDING, measureText: measureTextForHitTest });
@@ -712,6 +721,7 @@ export function OverlaySurface({
       }
       suppressTextClickRef.current = false;
       if (!textDraft) {
+        textDraftCommitHandledRef.current = false;
         onPlaceTextDraft(point, { ...toolStyle }, lifecycleSnapshot);
       }
       return;
@@ -963,13 +973,8 @@ export function OverlaySurface({
       }
       return;
     }
-    const next = textDraftTransition(textDraft, { type: "commit", isComposing: false });
-    if (next !== null) return;
-    const item = createTextItem(`text-${nextItemIdRef.current + 1}`, textDraft);
-    nextItemIdRef.current += 1;
-    textShiftRef.current = false;
-    onCancelTextDraft();
-    onCommitSceneItem(item);
+    if (textDraftTransition(textDraft, { type: "commit", isComposing: false }) !== null) return;
+    commitTextDraft(textDraft);
   };
 
   const handleTextKeyUp = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -980,6 +985,45 @@ export function OverlaySurface({
     textShiftRef.current = false;
     onCancelTextDraft();
   };
+
+  const commitTextDraft = useCallback((draft: TextDraft | null) => {
+    if (!draft || textDraftCommitHandledRef.current) return;
+    textDraftCommitHandledRef.current = true;
+    const next = textDraftTransition(draft, { type: "commit", isComposing: false });
+    if (next !== null) {
+      // Empty/whitespace-only drafts are not annotations. An outside click
+      // dismisses them; Enter keeps the editor open through handleTextKeyDown.
+      onCancelTextDraft();
+      return;
+    }
+    const item = createTextItem(`text-${nextItemIdRef.current + 1}`, draft);
+    nextItemIdRef.current += 1;
+    textShiftRef.current = false;
+    onCancelTextDraft();
+    onCommitSceneItem(item);
+  }, [onCancelTextDraft, onCommitSceneItem]);
+
+  useEffect(() => {
+    if (!textDraft) return;
+    const handleOutsidePointer = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Node) || textEditorRef.current?.contains(target)) return;
+      if (activeTool === "text" && canvasRef.current?.contains(target)) {
+        // The same canvas click must commit this draft, not place another one.
+        suppressTextClickRef.current = true;
+        suppressNextTextDraftRef.current = true;
+      }
+      commitTextDraft(textDraft);
+    };
+    // The embedded WebDriver may synthesize mouse events instead of pointer
+    // events. The commit guard makes the two paths idempotent when both fire.
+    window.addEventListener("pointerdown", handleOutsidePointer, true);
+    window.addEventListener("mousedown", handleOutsidePointer, true);
+    return () => {
+      window.removeEventListener("pointerdown", handleOutsidePointer, true);
+      window.removeEventListener("mousedown", handleOutsidePointer, true);
+    };
+  }, [activeTool, commitTextDraft, textDraft]);
 
   const draftPosition = textDraft ? viewportPoint(textDraft.anchor, viewportSize(viewport).width, viewportSize(viewport).height, viewport) : null;
   const draftEditorStyle = textDraft ? (() => {

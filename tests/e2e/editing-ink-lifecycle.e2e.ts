@@ -452,4 +452,132 @@ describe("Phase 4 editing and ink lifecycle", () => {
     expect(ignoredRedo.items).toEqual(branched.items);
     expect(ignoredRedo.canRedo).toBe(false);
   });
+
+  it("commits text once on Enter or outside click, cancels with Escape, and moves through history", async () => {
+    await selectVisibleGeneratedOverlay("text editing controls");
+    await waitForMode("VisibleInteractive");
+    const lifecycleToggle = await browser.$('[data-lifecycle-toggle="true"]');
+    if (await lifecycleToggle.getAttribute("data-lifecycle-mode") !== "persistent") await lifecycleToggle.click();
+    await (await browser.$('[data-tool="text"]')).click();
+
+    const beforeCancel = await nativeSnapshot();
+    const emptyPoint = await canvasPoint(0.12, 0.3);
+    await drawToolGesture("text", emptyPoint, emptyPoint);
+    let editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await browser.keys("Enter");
+    expect(await editor.isExisting()).toBe(true);
+    expect(await editor.getValue()).toBe("");
+    await browser.keys("Escape");
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] Escape did not dismiss an empty text draft`,
+    });
+
+    const cancelPoint = await canvasPoint(0.18, 0.48);
+    await drawToolGesture("text", cancelPoint, cancelPoint);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await editor.addValue("discard this draft");
+    await browser.keys("Escape");
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] Escape did not cancel the text draft`,
+    });
+    expect((await nativeSnapshot()).items).toEqual(beforeCancel.items);
+
+    const priorIds = new Set((await nativeSnapshot()).items.map((item) => item.id));
+    const textAnchor = await canvasPoint(0.3, 0.5);
+    await drawToolGesture("text", textAnchor, textAnchor);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    const enteredText = "emoji 👩🏽‍💻\ne\u0301";
+    await editor.addValue("emoji 👩🏽‍💻");
+    await browser.keys(["Shift", "Enter"]);
+    const valueAfterNewline = await editor.getValue();
+    expect(valueAfterNewline.endsWith("\n")).toBe(true);
+    await editor.addValue("e\u0301");
+    expect(await editor.getValue()).toBe(enteredText);
+    await browser.keys("Enter");
+
+    let enteredItem: SceneSnapshot["items"][number] | undefined;
+    await browser.waitUntil(async () => {
+      enteredItem = (await nativeSnapshot()).items.find((item) => item.kind === "text"
+        && !priorIds.has(item.id) && item.text === enteredText);
+      return enteredItem !== undefined;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Enter did not commit exactly one Unicode text item with its newline`,
+    });
+    if (!enteredItem || enteredItem.kind !== "text") throw new Error(`[${hostLabel()}] Committed text item is missing`);
+
+    const noOpMove = await invoke<SceneSnapshot>("move_text_scene_item", {
+      id: enteredItem.id,
+      anchor: enteredItem.anchor,
+    });
+    expect(noOpMove.items).toEqual((await nativeSnapshot()).items);
+
+    const movedPoint = { x: textAnchor.x + 48, y: textAnchor.y + 28 };
+    await drawToolGesture("text", textAnchor, movedPoint);
+    let movedItem: SceneSnapshot["items"][number] | undefined;
+    await browser.waitUntil(async () => {
+      movedItem = (await nativeSnapshot()).items.find((item) => item.id === enteredItem?.id);
+      return movedItem?.kind === "text" && (movedItem.anchor.x !== enteredItem.anchor.x || movedItem.anchor.y !== enteredItem.anchor.y);
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Dragging committed text did not move its native anchor`,
+    });
+    if (!movedItem || movedItem.kind !== "text") throw new Error(`[${hostLabel()}] Moved text item is missing`);
+    expect(movedItem).toMatchObject({ text: enteredItem.text, style: enteredItem.style, lifecycle: enteredItem.lifecycle });
+
+    await pressHistoryShortcut("z");
+    await browser.waitUntil(async () => {
+      const item = (await nativeSnapshot()).items.find((candidate) => candidate.id === enteredItem?.id);
+      return item?.kind === "text" && item.anchor.x === enteredItem.anchor.x && item.anchor.y === enteredItem.anchor.y;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Undo did not restore the exact original text position`,
+    });
+    await pressHistoryShortcut("z");
+    await browser.waitUntil(async () => !(await nativeSnapshot()).items.some((item) => item.id === enteredItem?.id), {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Text creation was not the single history step before its move`,
+    });
+    await pressHistoryShortcut("y");
+    await browser.waitUntil(async () => {
+      const item = (await nativeSnapshot()).items.find((candidate) => candidate.id === enteredItem?.id);
+      return item?.kind === "text" && item.anchor.x === enteredItem.anchor.x && item.anchor.y === enteredItem.anchor.y;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Redo did not restore the original text creation`,
+    });
+    await pressHistoryShortcut("y");
+    await browser.waitUntil(async () => {
+      const item = (await nativeSnapshot()).items.find((candidate) => candidate.id === enteredItem?.id);
+      return item?.kind === "text" && item.anchor.x === movedItem?.anchor.x && item.anchor.y === movedItem?.anchor.y;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Redo did not restore the committed text move`,
+    });
+
+    const outsidePoint = await canvasPoint(0.7, 0.5);
+    await drawToolGesture("text", outsidePoint, outsidePoint);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await editor.addValue("outside commit");
+    const beforeOutsideClick = await nativeSnapshot();
+    await drawToolGesture("text", await canvasPoint(0.83, 0.74), await canvasPoint(0.83, 0.74));
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] Outside canvas click did not close the text editor`,
+    });
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.length === beforeOutsideClick.items.length + 1
+        && snapshot.items.filter((item) => item.kind === "text" && item.text === "outside commit").length === 1;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] Outside click did not commit exactly one text item without opening another draft`,
+    });
+  });
 });
