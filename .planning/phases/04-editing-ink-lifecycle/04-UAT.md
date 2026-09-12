@@ -3,15 +3,15 @@ status: testing
 phase: 04-editing-ink-lifecycle
 source: [04-VERIFICATION.md]
 started: 2026-09-12T14:02:13Z
-updated: 2026-09-12T14:36:02Z
+updated: 2026-09-12T15:00:38Z
 ---
 
 ## Current Test
 
-number: 2
-name: Windows native parity
+number: 3
+name: Per-tool controls after Undo/Redo
 expected: |
-  On Windows, drawing, text commit/move, lifecycle controls, Undo/Redo buttons, and Ctrl+Z/Ctrl+Y work; shortcuts do not affect the underlying app.
+  Distinct color, width, opacity, fill, and text-size settings remain associated with their tools after switching tools and restoring scene history.
 awaiting: user response
 
 ## Tests
@@ -24,7 +24,9 @@ severity: major
 
 ### 2. Windows native parity
 expected: On Windows, drawing, text commit/move, lifecycle controls, Undo/Redo buttons, and Ctrl+Z/Ctrl+Y work; shortcuts do not affect the underlying app.
-result: [pending]
+result: issue
+reported: "Ctrl+Z/Ctrl+Y đang là clear all"
+severity: major
 
 ### 3. Per-tool controls after Undo/Redo
 expected: Distinct color, width, opacity, fill, and text-size settings remain associated with their tools after switching tools and restoring scene history.
@@ -34,8 +36,8 @@ result: [pending]
 
 total: 3
 passed: 0
-issues: 1
-pending: 2
+issues: 2
+pending: 1
 skipped: 0
 blocked: 0
 
@@ -48,6 +50,14 @@ blocked: 0
   reason: "User reported that Vanishing marks disappear immediately instead of fading and that the stroke jumps unpredictably when Vanishing is enabled."
   severity: major
   test: 1
+  artifacts: []
+  missing: []
+- gap_id: G-04-2
+  truth: "On Windows, Ctrl+Z and Ctrl+Y perform Undo and Redo without clearing the scene or affecting the underlying app."
+  status: failed
+  reason: "User reported Ctrl+Z/Ctrl+Y are triggering Clear All instead of their history actions."
+  severity: major
+  test: 2
   artifacts: []
   missing: []
 
