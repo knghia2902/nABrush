@@ -622,5 +622,102 @@ describe("Phase 4 editing and ink lifecycle", () => {
       timeout: 10_000,
       timeoutMsg: `[${hostLabel()}] IME composition-end text was not committed exactly once`,
     });
+
+    const raceBefore = await nativeSnapshot();
+    const racePoint = await canvasPoint(0.3, 0.28);
+    await drawToolGesture("text", racePoint, racePoint);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await browser.execute(() => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME race editor is unavailable");
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!setValue) throw new Error("Textarea value setter is unavailable");
+      field.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "đầu" }));
+      setValue.call(field, "ứng viên đầu");
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertCompositionText", data: "ứng viên đầu" }));
+    });
+    await drawToolGesture("text", await canvasPoint(0.86, 0.7), await canvasPoint(0.86, 0.7));
+    await browser.execute(() => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME race editor disappeared before the next composition");
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!setValue) throw new Error("Textarea value setter is unavailable");
+      field.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "đã chốt lần một" }));
+      setValue.call(field, "đã chốt lần một");
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: "đã chốt lần một" }));
+      field.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "lần hai" }));
+      setValue.call(field, "đang nhập lần hai");
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertCompositionText", data: "đang nhập lần hai" }));
+    });
+    await browser.pause(50);
+    expect(await editor.isExisting()).toBe(true);
+    expect((await nativeSnapshot()).items).toEqual(raceBefore.items);
+
+    const finalRaceText = "composition thứ hai hoàn tất";
+    await browser.execute((text) => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME race editor disappeared before the final composition-end");
+      field.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: text }));
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      if (!setValue) throw new Error("Textarea value setter is unavailable");
+      setValue.call(field, text);
+      field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+    }, finalRaceText);
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] Outside-click draft did not commit after the final IME composition`,
+    });
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.length === raceBefore.items.length + 1
+        && snapshot.items.filter((item) => item.kind === "text" && item.text === finalRaceText).length === 1;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] The second IME composition was not committed exactly once`,
+    });
+
+    const beforeImeEscape = await nativeSnapshot();
+    const imeEscapePoint = await canvasPoint(0.38, 0.22);
+    await drawToolGesture("text", imeEscapePoint, imeEscapePoint);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await browser.execute(() => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME Escape editor is unavailable");
+      field.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "đang nhập" }));
+      field.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape", isComposing: true }));
+    });
+    expect(await editor.isExisting()).toBe(true);
+    await browser.execute(() => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
+      if (!field) throw new Error("IME Escape editor disappeared before draft cancellation");
+      field.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape", isComposing: false }));
+    });
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] Escape did not cancel the draft after the IME handled its Escape`,
+    });
+    expect((await nativeSnapshot()).items).toEqual(beforeImeEscape.items);
+
+    const afterImeEscapePoint = await canvasPoint(0.46, 0.26);
+    await drawToolGesture("text", afterImeEscapePoint, afterImeEscapePoint);
+    editor = await browser.$('[data-text-draft="true"]');
+    await editor.waitForDisplayed({ timeout: 5_000 });
+    await editor.addValue("click commits after IME cancel");
+    const beforePostEscapeClick = await nativeSnapshot();
+    await drawToolGesture("text", await canvasPoint(0.89, 0.76), await canvasPoint(0.89, 0.76));
+    await browser.waitUntil(async () => !(await editor.isExisting()), {
+      timeout: 5_000,
+      timeoutMsg: `[${hostLabel()}] A stale IME state blocked outside-click commit on the next draft`,
+    });
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.length === beforePostEscapeClick.items.length + 1
+        && snapshot.items.filter((item) => item.kind === "text" && item.text === "click commits after IME cancel").length === 1;
+    }, {
+      timeout: 10_000,
+      timeoutMsg: `[${hostLabel()}] The draft after IME cancellation did not commit exactly once`,
+    });
   });
 });

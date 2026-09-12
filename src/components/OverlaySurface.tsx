@@ -707,13 +707,22 @@ export function OverlaySurface({
     if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
   }, []);
 
+  const cancelTextDraft = useCallback(() => {
+    compositionCommitCancelRef.current?.();
+    compositionCommitCancelRef.current = null;
+    textCompositionRef.current = false;
+    deferredOutsideTextCommitRef.current = false;
+    textShiftRef.current = false;
+    onCancelTextDraft();
+  }, [onCancelTextDraft]);
+
   const finishLocalCommit = useCallback((item: SceneItem) => {
     if (item.kind === "text") {
-      onCancelTextDraft();
+      cancelTextDraft();
       return;
     }
     cancelGesture();
-  }, [cancelGesture, onCancelTextDraft]);
+  }, [cancelGesture, cancelTextDraft]);
 
   const submitSceneItem = useCallback((item: SceneItem, notice?: string) => {
     if (sceneCommitInFlightRef.current) return;
@@ -758,7 +767,7 @@ export function OverlaySurface({
     pendingSceneCommitRef.current = null;
     setPendingSceneItem(null);
     setCommitFeedback(null);
-    if (item.kind === "text") onCancelTextDraft();
+    if (item.kind === "text") cancelTextDraft();
     else cancelGesture();
   };
 
@@ -768,8 +777,8 @@ export function OverlaySurface({
       && !textDraftCommitHandledRef.current
       && !textCompositionRef.current
       && !deferredOutsideTextCommitRef.current
-      && pendingSceneCommitRef.current?.kind !== "text") onCancelTextDraft();
-  }, [activeTool, cancelGesture, mode, onCancelTextDraft]);
+      && pendingSceneCommitRef.current?.kind !== "text") cancelTextDraft();
+  }, [activeTool, cancelGesture, mode, cancelTextDraft]);
 
   useEffect(() => {
     if (textDraft) textEditorRef.current?.focus();
@@ -784,7 +793,7 @@ export function OverlaySurface({
       textShiftRef.current = false;
       if (textCompositionRef.current || deferredOutsideTextCommitRef.current) return;
       if (!textDraftCommitHandledRef.current && pendingSceneCommitRef.current?.kind !== "text") {
-        onCancelTextDraft();
+        cancelTextDraft();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -793,7 +802,7 @@ export function OverlaySurface({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("blur", handleBlur);
     };
-  }, [cancelGesture, onCancelTextDraft]);
+  }, [cancelGesture, cancelTextDraft]);
 
   const eventPoint = (event: CanvasGestureEvent): CanonicalPoint | null => {
     const point = normalizePointerPath([event], event.currentTarget.getBoundingClientRect(), viewport)[0];
@@ -1097,9 +1106,11 @@ export function OverlaySurface({
       return;
     }
     if (event.key === "Escape") {
+      // Let the IME consume its first Escape to cancel the active candidate;
+      // the next Escape cancels the draft after the composition has ended.
+      if (event.nativeEvent.isComposing) return;
       event.preventDefault();
-      textShiftRef.current = false;
-      onCancelTextDraft();
+      cancelTextDraft();
       return;
     }
     if (event.key !== "Enter") return;
@@ -1127,7 +1138,7 @@ export function OverlaySurface({
     textShiftRef.current = false;
     if (textCompositionRef.current || deferredOutsideTextCommitRef.current
       || textDraftCommitHandledRef.current || pendingSceneCommitRef.current?.kind === "text") return;
-    onCancelTextDraft();
+    cancelTextDraft();
   };
 
   const handleTextDraftChange = (value: string) => {
@@ -1149,7 +1160,7 @@ export function OverlaySurface({
     if (next !== null) {
       // Empty/whitespace-only drafts are not annotations. An outside click
       // dismisses them; Enter keeps the editor open through handleTextKeyDown.
-      onCancelTextDraft();
+      cancelTextDraft();
       return;
     }
     const item = createTextItem(`text-${nextItemIdRef.current + 1}`, draft);
@@ -1161,9 +1172,13 @@ export function OverlaySurface({
     nextItemIdRef.current += 1;
     textShiftRef.current = false;
     submitSceneItem(item);
-  }, [onCancelTextDraft, submitSceneItem]);
+  }, [cancelTextDraft, submitSceneItem]);
 
   const handleTextCompositionStart = () => {
+    // A new IME session supersedes any outside-click commit deferred by the
+    // previous composition; only its own compositionend may resume the commit.
+    compositionCommitCancelRef.current?.();
+    compositionCommitCancelRef.current = null;
     textCompositionRef.current = true;
   };
 
@@ -1175,6 +1190,7 @@ export function OverlaySurface({
     const finishDeferredCommit = () => {
       compositionCommitCancelRef.current = null;
       if (!deferredOutsideTextCommitRef.current) return;
+      if (textCompositionRef.current) return;
       deferredOutsideTextCommitRef.current = false;
       const draft = textDraftRef.current;
       if (!draft) return;
