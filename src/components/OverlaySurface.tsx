@@ -1114,6 +1114,7 @@ export function OverlaySurface({
       }
       return;
     }
+    event.preventDefault();
     if (textDraftTransition(textDraft, { type: "commit", isComposing: false }) !== null) return;
     commitTextDraft(textDraft);
   };

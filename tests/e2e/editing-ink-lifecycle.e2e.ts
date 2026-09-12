@@ -468,6 +468,9 @@ describe("Phase 4 editing and ink lifecycle", () => {
     await browser.keys("Enter");
     expect(await editor.isExisting()).toBe(true);
     expect(await editor.getValue()).toBe("");
+    await editor.addValue("   ");
+    await browser.keys("Enter");
+    expect(await editor.getValue()).toBe("   ");
     await browser.keys("Escape");
     await browser.waitUntil(async () => !(await editor.isExisting()), {
       timeout: 5_000,
