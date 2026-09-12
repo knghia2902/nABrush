@@ -253,6 +253,7 @@ impl SceneItem {
 #[serde(rename_all = "camelCase")]
 pub struct SceneSnapshot {
     pub scene_id: String,
+    pub revision: u64,
     pub items: Vec<SceneItem>,
     pub can_undo: bool,
     pub can_redo: bool,
@@ -267,6 +268,7 @@ struct SceneHistoryEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneStore {
     scene_id: String,
+    revision: u64,
     items: Vec<SceneItem>,
     past: Vec<SceneHistoryEntry>,
     future: Vec<SceneHistoryEntry>,
@@ -284,6 +286,7 @@ impl SceneStore {
             // The value is opaque to the renderer and intentionally stable for
             // the lifetime of the app, including when a display is removed.
             scene_id: "webview-scene".into(),
+            revision: 0,
             items: Vec::new(),
             past: Vec::new(),
             future: Vec::new(),
@@ -299,6 +302,7 @@ impl SceneStore {
         }
         Ok(Self {
             scene_id,
+            revision: 0,
             items: Vec::new(),
             past: Vec::new(),
             future: Vec::new(),
@@ -312,6 +316,7 @@ impl SceneStore {
     pub fn snapshot(&self) -> SceneSnapshot {
         SceneSnapshot {
             scene_id: self.scene_id.clone(),
+            revision: self.revision,
             items: self.items.clone(),
             can_undo: !self.past.is_empty(),
             can_redo: !self.future.is_empty(),
@@ -319,6 +324,7 @@ impl SceneStore {
     }
 
     fn record_history(&mut self, before: Vec<SceneItem>, after: Vec<SceneItem>) {
+        self.revision = self.revision.saturating_add(1);
         self.past.push(SceneHistoryEntry { before, after });
         if self.past.len() > MAX_HISTORY_DEPTH {
             self.past.remove(0);
@@ -371,7 +377,11 @@ impl SceneStore {
                 .expires_at_ms()
                 .map_or(true, |deadline| (now_ms as f64) < deadline)
         });
-        (self.items.len() != prior_len).then(|| self.snapshot())
+        if self.items.len() == prior_len {
+            return None;
+        }
+        self.revision = self.revision.saturating_add(1);
+        Some(self.snapshot())
     }
 
     /// Whether a retained vanishing item currently needs animation redraws.
@@ -449,6 +459,7 @@ impl SceneStore {
         let entry = self.past.pop().expect("history entry was checked");
         self.items = entry.before.clone();
         self.future.push(entry);
+        self.revision = self.revision.saturating_add(1);
         Ok(Some(self.snapshot()))
     }
 
@@ -461,6 +472,7 @@ impl SceneStore {
         let entry = self.future.pop().expect("history entry was checked");
         self.items = entry.after.clone();
         self.past.push(entry);
+        self.revision = self.revision.saturating_add(1);
         Ok(Some(self.snapshot()))
     }
 }
@@ -1404,16 +1416,20 @@ mod tests {
             "lifecycle":{"mode":"vanishing","durationSeconds":2.0}
         });
         let created = scene.commit_scene_item_at(item, 1_000).unwrap();
+        assert!(created.revision > 0);
         assert_eq!(scene.expire_due_items(2_999), None);
         let expired = scene.expire_due_items(3_000).unwrap();
+        assert!(expired.revision > created.revision);
         assert!(expired.items.is_empty());
         assert!(expired.can_undo);
         assert!(!expired.can_redo);
 
         let undone = scene.undo_scene().unwrap().unwrap();
+        assert!(undone.revision > expired.revision);
         assert!(undone.items.is_empty());
         assert!(undone.can_redo);
         let redone = scene.redo_scene().unwrap().unwrap();
+        assert!(redone.revision > undone.revision);
         assert_eq!(redone.items, created.items);
         assert!(redone.can_undo);
         assert!(scene.expire_due_items(3_000).unwrap().items.is_empty());

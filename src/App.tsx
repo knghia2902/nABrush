@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -35,11 +35,26 @@ export default function App() {
   const [sceneId, setSceneId] = useState("webview-scene");
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const appliedSceneRevisionRef = useRef<{ sceneId: string; revision: number } | null>(null);
   const [viewport, setViewport] = useState<DisplayViewport>(DEFAULT_VIEWPORT);
   const [annotationState, setAnnotationState] = useState(createInitialAnnotationState);
   const [propertyOpen, setPropertyOpen] = useState(false);
 
   const applySceneSnapshot = useCallback((snapshot: SceneSnapshot) => {
+    const applied = appliedSceneRevisionRef.current;
+    const revisionValue = (snapshot as SceneSnapshot & { revision?: number }).revision;
+    const revision = Number.isSafeInteger(revisionValue) ? revisionValue! : null;
+    if (applied?.sceneId === snapshot.sceneId) {
+      // A legacy/unversioned reply must not replace a versioned snapshot already
+      // applied by this overlay, and delayed events/replies cannot move it back.
+      if (revision === null && applied.revision >= 0) return;
+      if (revision !== null && revision < applied.revision) return;
+    }
+    if (revision !== null) {
+      appliedSceneRevisionRef.current = { sceneId: snapshot.sceneId, revision };
+    } else if (applied?.sceneId !== snapshot.sceneId) {
+      appliedSceneRevisionRef.current = { sceneId: snapshot.sceneId, revision: -1 };
+    }
     setSceneId(snapshot.sceneId);
     setScene(snapshot.items);
     setCanUndo(snapshot.canUndo === true);
