@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Editing & Ink Lifecycle
-current_plan: 5
+current_plan: 2
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-09-11T18:20:24.258Z"
-last_activity: 2026-09-11
-last_activity_desc: Phase 03 execution started
-state_head: 1e26b4ab69f17eabfca4bbf540bf02d474798c2c
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-09-12T04:34:03.687Z"
+last_activity: 2026-09-12
+last_activity_desc: Phase 04 execution started
+state_head: 3bc05cc0c59011a56702c0abd7bd6d41bc1f3b1a
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 29
-  completed_plans: 23
+  completed_plans: 24
   percent: 17
 ---
 
@@ -24,17 +24,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-10)
 
 **Core value:** Người dùng có thể đánh dấu rõ ràng bất kỳ nội dung nào trên màn hình trong vài giây mà không phải rời khỏi ứng dụng đang dùng.
-**Current focus:** Phase 03 — Core Annotation Tools
+**Current focus:** Phase 04 — Editing & Ink Lifecycle
 
 ## Current Position
 
-Current Plan: 5
+Current Plan: 2
 Total Plans in Phase: 2
 
-Phase: 04 (Editing & Ink Lifecycle) — READY TO EXECUTE
-Plan: 5 of 8
+Phase: 04 (Editing & Ink Lifecycle) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-09-11 — Completed quick task 260911-udb: Thu gọn khung nhập và cho phép kéo text đã viết
+Last activity: 2026-09-12 — Phase 04 execution started
 
 Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
 
@@ -67,6 +67,7 @@ Progress: ░░░░░░░░░░ [██░░░░░░░░] 17%
 | Phase 03 P06 | 11min | 2 tasks | 3 files |
 | Phase 03 P07 | 12 min | 2 tasks | 2 files |
 | Phase 03 P08 | 5 min | 2 tasks | 2 files |
+| Phase 04 P01 | 69 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Map every in-scope source item to concrete plans through 03-08-01 while excluding deferred ideas.
 - [Phase 03]: Keep status gaps_found, nyquist_compliant false, wave_0_complete false, and approval pending until native/manual and Windows evidence exists.
 - [Phase 03]: Treat COVERED in the four-source audit as traceability only; do not convert macOS or local results into Windows or native/manual proof.
+- [Phase 04]: Snapshot lifecycle mode and duration when each annotation is committed; later toolbar changes affect only future items.
+- [Phase 04]: Keep expiry in the canonical native scene and use native lifecycle-frame events to drive final-second redraws independently of visibility.
 
 ### Pending Todos
 
@@ -118,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-11T16:57:59.391Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-editing-ink-lifecycle/04-CONTEXT.md
+Last session: 2026-09-12T04:34:03.623Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None

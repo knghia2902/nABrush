@@ -35,9 +35,9 @@ Requirements for the initial cross-platform release. Each requirement is user-ce
 
 - [ ] **EDIT-01**: User can undo and redo each drawing, text, erase, and clear operation in order.
 - [ ] **EDIT-02**: User can clear all annotations from the active scene with an undoable action.
-- [ ] **EDIT-03**: User can choose persistent ink that remains visible until explicitly erased or cleared.
-- [ ] **EDIT-04**: User can choose vanishing ink and configure its fade duration in seconds.
-- [ ] **EDIT-05**: User can see which ink lifecycle mode is active and can change it without losing existing annotations.
+- [x] **EDIT-03**: User can choose persistent ink that remains visible until explicitly erased or cleared.
+- [x] **EDIT-04**: User can choose vanishing ink and configure its fade duration in seconds.
+- [x] **EDIT-05**: User can see which ink lifecycle mode is active and can change it without losing existing annotations.
 - [ ] **EDIT-06**: User's selected color, width, opacity, and text size are remembered per tool during the current app session.
 
 ### Capture and Export
@@ -120,9 +120,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DRAW-06 | Phase 3 | Complete |
 | EDIT-01 | Phase 4 | Pending |
 | EDIT-02 | Phase 4 | Pending |
-| EDIT-03 | Phase 4 | Pending |
-| EDIT-04 | Phase 4 | Pending |
-| EDIT-05 | Phase 4 | Pending |
+| EDIT-03 | Phase 4 | Complete |
+| EDIT-04 | Phase 4 | Complete |
+| EDIT-05 | Phase 4 | Complete |
 | EDIT-06 | Phase 4 | Pending |
 | EXPT-01 | Phase 5 | Pending |
 | EXPT-02 | Phase 5 | Pending |
