@@ -587,6 +587,7 @@ describe("Phase 4 editing and ink lifecycle", () => {
     await drawToolGesture("text", composingPoint, composingPoint);
     editor = await browser.$('[data-text-draft="true"]');
     await editor.waitForDisplayed({ timeout: 5_000 });
+    const beforeImeComposition = await nativeSnapshot();
     await browser.execute(() => {
       const field = document.querySelector<HTMLTextAreaElement>('[data-text-draft="true"]');
       if (!field) throw new Error("IME text editor is unavailable");
@@ -613,9 +614,13 @@ describe("Phase 4 editing and ink lifecycle", () => {
       timeout: 5_000,
       timeoutMsg: `[${hostLabel()}] Deferred outside-click commit did not finish after IME composition-end`,
     });
-    await browser.waitUntil(async () => (await nativeSnapshot()).items.some((item) => item.kind === "text" && item.text === finalComposedText), {
+    await browser.waitUntil(async () => {
+      const snapshot = await nativeSnapshot();
+      return snapshot.items.length === beforeImeComposition.items.length + 1
+        && snapshot.items.filter((item) => item.kind === "text" && item.text === finalComposedText).length === 1;
+    }, {
       timeout: 10_000,
-      timeoutMsg: `[${hostLabel()}] IME composition-end text was not committed in full`,
+      timeoutMsg: `[${hostLabel()}] IME composition-end text was not committed exactly once`,
     });
   });
 });

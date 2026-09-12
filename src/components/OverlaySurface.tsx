@@ -1182,13 +1182,11 @@ export function OverlaySurface({
       handleTextDraftChange(finalValue);
       commitTextDraft({ ...draft, value: finalValue });
     };
-    if (typeof window.requestAnimationFrame === "function") {
-      const frame = window.requestAnimationFrame(finishDeferredCommit);
-      compositionCommitCancelRef.current = () => window.cancelAnimationFrame(frame);
-    } else {
-      const timer = window.setTimeout(finishDeferredCommit, 0);
-      compositionCommitCancelRef.current = () => window.clearTimeout(timer);
-    }
+    // Transparent overlay webviews can be hidden while still receiving IME
+    // input; WebKit suspends requestAnimationFrame in that state. Defer one
+    // task so the final composition input is applied without depending on a frame.
+    const timer = window.setTimeout(finishDeferredCommit, 0);
+    compositionCommitCancelRef.current = () => window.clearTimeout(timer);
   };
 
   useEffect(() => () => {
