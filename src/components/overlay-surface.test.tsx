@@ -14,6 +14,7 @@ import {
   drawTextItem,
   gesturePhaseFor,
   gestureTerminalAction,
+  limitStrokePointCount,
   normalizePointerPath,
   transientGeometryForGesture,
   transientSceneItemForGesture,
@@ -22,6 +23,10 @@ import {
   viewportToCanonical,
   sceneItemExpiryDeadlineMs,
   sceneItemOpacityMultiplier,
+  MAX_STROKE_POINTS,
+  MAX_TEXT_LINES,
+  MAX_TEXT_UTF8_BYTES,
+  textSceneItemLimitError,
   VANISHING_FADE_WINDOW_MS,
 } from "./OverlaySurface";
 
@@ -34,6 +39,26 @@ const viewport = {
 };
 
 describe("OverlaySurface scene helpers", () => {
+  it("keeps strokes within the native point cap while preserving both endpoints", () => {
+    const source = Array.from({ length: MAX_STROKE_POINTS + 10 }, (_, x) => ({ x, y: -x }));
+    const limited = limitStrokePointCount(source);
+
+    expect(limited.simplified).toBe(true);
+    expect(limited.points).toHaveLength(MAX_STROKE_POINTS);
+    expect(limited.points[0]).toEqual(source[0]);
+    expect(limited.points.at(-1)).toEqual(source.at(-1));
+    expect(limitStrokePointCount(source.slice(0, MAX_STROKE_POINTS)).simplified).toBe(false);
+  });
+
+  it("matches native text limits using UTF-8 bytes and newline-delimited lines", () => {
+    expect(MAX_TEXT_UTF8_BYTES).toBe(4_096);
+    expect(MAX_TEXT_LINES).toBe(256);
+    expect(textSceneItemLimitError("界".repeat(1_365))).toBeNull();
+    expect(textSceneItemLimitError("界".repeat(1_366))).toContain("UTF-8 bytes");
+    expect(textSceneItemLimitError(Array(MAX_TEXT_LINES).fill("x").join("\n"))).toBeNull();
+    expect(textSceneItemLimitError(Array(MAX_TEXT_LINES + 1).fill("x").join("\n"))).toContain("lines");
+  });
+
   it("normalizes a pointer path into one stable stroke scene item", () => {
     const path = normalizePointerPath(
       [

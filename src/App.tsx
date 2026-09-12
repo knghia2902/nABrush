@@ -107,7 +107,7 @@ export default function App() {
   }, [applySceneSnapshot, isSettingsWindow]);
 
   const commitSceneItem = (item: SceneItem) => {
-    void invoke<SceneSnapshot>("commit_scene_item", { item })
+    return invoke<SceneSnapshot>("commit_scene_item", { item })
       .then(applySceneSnapshot);
   };
 

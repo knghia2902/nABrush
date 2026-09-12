@@ -44,6 +44,40 @@ export type SurfaceRect = { left: number; top: number; width: number; height: nu
 export type GesturePhase = "idle" | "pressed" | "previewing";
 export type GestureTerminalAction = "ignore" | "cancel" | "commit";
 export const VANISHING_FADE_WINDOW_MS = 1_000;
+export const MAX_STROKE_POINTS = 4_096;
+export const MAX_TEXT_UTF8_BYTES = 4_096;
+export const MAX_TEXT_LINES = 256;
+
+export function limitStrokePointCount(points: readonly StrokePoint[]): { points: StrokePoint[]; simplified: boolean } {
+  if (points.length <= MAX_STROKE_POINTS) return { points: [...points], simplified: false };
+  const lastIndex = points.length - 1;
+  const limited = Array.from({ length: MAX_STROKE_POINTS }, (_, index) => (
+    points[Math.round(index * lastIndex / (MAX_STROKE_POINTS - 1))]
+  ));
+  return { points: limited, simplified: true };
+}
+
+export function textSceneItemLimitError(text: string): string | null {
+  const bytes = new TextEncoder().encode(text).length;
+  const lines = text.split("\n").length;
+  const violations: string[] = [];
+  if (bytes > MAX_TEXT_UTF8_BYTES) violations.push(`${bytes} UTF-8 bytes (maximum ${MAX_TEXT_UTF8_BYTES})`);
+  if (lines > MAX_TEXT_LINES) violations.push(`${lines} lines (maximum ${MAX_TEXT_LINES})`);
+  return violations.length > 0 ? `Text is over the native limit: ${violations.join(" and ")}. Shorten it before saving; the draft is still here.` : null;
+}
+
+function sceneItemLimitError(item: SceneItem): string | null {
+  if (item.kind === "text") return textSceneItemLimitError(item.text);
+  if (item.kind === "stroke" && (item.points.length === 0 || item.points.length > MAX_STROKE_POINTS)) {
+    return `This stroke has ${item.points.length} points; the native maximum is ${MAX_STROKE_POINTS}. The gesture is retained on screen.`;
+  }
+  return null;
+}
+
+function errorDetail(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" ? error : "unknown native error";
+}
 
 export function gesturePhaseFor(pointerId: number | null, transientSceneItem: SceneItem | null): GesturePhase {
   if (pointerId === null) return "idle";
@@ -544,7 +578,7 @@ type Props = {
   onPlaceTextDraft: (anchor: CanonicalPoint, style: AnnotationStyle, lifecycle: AnnotationLifecycleSnapshot) => void;
   onUpdateTextDraft: (value: string) => void;
   onCancelTextDraft: () => void;
-  onCommitSceneItem: (item: SceneItem) => void;
+  onCommitSceneItem: (item: SceneItem) => void | Promise<void>;
   onMoveTextItem: (id: string, anchor: CanonicalPoint) => void;
   onEraseSceneItem: (id: string) => void;
 };
@@ -585,6 +619,8 @@ export function OverlaySurface({
   const textDragRef = useRef<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
   const textShiftRef = useRef(false);
   const textDraftCommitHandledRef = useRef(false);
+  const sceneCommitInFlightRef = useRef(false);
+  const pendingSceneCommitRef = useRef<SceneItem | null>(null);
   const samplesRef = useRef<PointerSample[]>([]);
   const gestureStyleRef = useRef<AnnotationStyle>(toolStyle);
   const gestureLifecycleRef = useRef<AnnotationLifecycleSnapshot>(lifecycleSnapshot);
@@ -593,6 +629,9 @@ export function OverlaySurface({
   const [transientSceneItem, setTransientSceneItem] = useState<SceneItem | null>(null);
   const [gesturePhase, setGesturePhase] = useState<GesturePhase>("idle");
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [pendingSceneItem, setPendingSceneItem] = useState<SceneItem | null>(null);
+  const [commitSaving, setCommitSaving] = useState(false);
+  const [commitFeedback, setCommitFeedback] = useState<{ kind: "error" | "notice"; message: string } | null>(null);
 
   const measureTextForHitTest = useCallback((line: string, style: AnnotationStyle): number => {
     const context = canvasRef.current?.getContext("2d");
@@ -648,6 +687,7 @@ export function OverlaySurface({
   }, [redraw]);
 
   const cancelGesture = useCallback(() => {
+    if (pendingSceneCommitRef.current && pendingSceneCommitRef.current.kind !== "text") return;
     const canvas = canvasRef.current;
     const pointerId = pointerIdRef.current;
     pointerIdRef.current = null;
@@ -659,9 +699,66 @@ export function OverlaySurface({
     if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
   }, []);
 
+  const finishLocalCommit = useCallback((item: SceneItem) => {
+    if (item.kind === "text") {
+      onCancelTextDraft();
+      return;
+    }
+    cancelGesture();
+  }, [cancelGesture, onCancelTextDraft]);
+
+  const submitSceneItem = useCallback((item: SceneItem, notice?: string) => {
+    if (sceneCommitInFlightRef.current) return;
+    const limitError = sceneItemLimitError(item);
+    if (limitError) {
+      setCommitFeedback({ kind: "error", message: limitError });
+      return;
+    }
+    sceneCommitInFlightRef.current = true;
+    pendingSceneCommitRef.current = item;
+    setPendingSceneItem(item);
+    setCommitSaving(true);
+    setCommitFeedback(null);
+    void Promise.resolve()
+      .then(() => onCommitSceneItem(item))
+      .then(() => {
+        sceneCommitInFlightRef.current = false;
+        pendingSceneCommitRef.current = null;
+        setPendingSceneItem(null);
+        setCommitSaving(false);
+        finishLocalCommit(item);
+        setCommitFeedback(notice ? { kind: "notice", message: notice } : null);
+      })
+      .catch((error: unknown) => {
+        sceneCommitInFlightRef.current = false;
+        setCommitSaving(false);
+        if (item.kind === "text") textDraftCommitHandledRef.current = true;
+        setCommitFeedback({
+          kind: "error",
+          message: `Could not save annotation: ${errorDetail(error)}. It remains on screen. Retry saving or discard it explicitly.${notice ? ` ${notice}` : ""}`,
+        });
+      });
+  }, [finishLocalCommit, onCommitSceneItem]);
+
+  const retryPendingSceneItem = () => {
+    if (pendingSceneItem) submitSceneItem(pendingSceneItem);
+  };
+
+  const discardPendingSceneItem = () => {
+    const item = pendingSceneCommitRef.current;
+    if (!item || sceneCommitInFlightRef.current) return;
+    pendingSceneCommitRef.current = null;
+    setPendingSceneItem(null);
+    setCommitFeedback(null);
+    if (item.kind === "text") onCancelTextDraft();
+    else cancelGesture();
+  };
+
   useEffect(() => {
     cancelGesture();
-    if (mode !== "VisibleInteractive" || activeTool !== "text") onCancelTextDraft();
+    if ((mode !== "VisibleInteractive" || activeTool !== "text")
+      && !textDraftCommitHandledRef.current
+      && pendingSceneCommitRef.current?.kind !== "text") onCancelTextDraft();
   }, [activeTool, cancelGesture, mode, onCancelTextDraft]);
 
   useEffect(() => {
@@ -675,7 +772,9 @@ export function OverlaySurface({
     const handleBlur = () => {
       cancelGesture();
       textShiftRef.current = false;
-      onCancelTextDraft();
+      if (!textDraftCommitHandledRef.current && pendingSceneCommitRef.current?.kind !== "text") {
+        onCancelTextDraft();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("blur", handleBlur);
@@ -691,6 +790,7 @@ export function OverlaySurface({
   };
 
   const beginGesture = (event: CanvasGestureEvent) => {
+    if (pendingSceneCommitRef.current) return;
     if (mode !== "VisibleInteractive" || event.button !== 0) return;
     if (activeTool === "text") {
       if (textDraft || pointerIdRef.current !== null) return;
@@ -814,24 +914,54 @@ export function OverlaySurface({
     const style = gestureStyleRef.current;
     const tool = gestureToolRef.current;
     const points = normalizePointerPath(samples, rect, viewport);
-    cancelGesture();
+    const retainGestureUntilCommitted = (item: SceneItem) => {
+      const activeCanvas = canvasRef.current;
+      const activePointerId = pointerIdRef.current;
+      pointerIdRef.current = null;
+      textDragRef.current = null;
+      samplesRef.current = [];
+      if (activeCanvas && activePointerId !== null && activeCanvas.hasPointerCapture(activePointerId)) {
+        activeCanvas.releasePointerCapture(activePointerId);
+      }
+      setTransientSceneItem(item);
+      setGesturePhase("previewing");
+    };
     if (isShapeTool(tool)) {
       const lifecycle = gestureLifecycleRef.current;
       const geometryItem = transientGeometryForGesture(samples, rect, viewport, tool, style, lifecycle);
-      if (!geometryItem) return;
+      if (!geometryItem) {
+        cancelGesture();
+        return;
+      }
       nextItemIdRef.current += 1;
       const id = `${tool}-${nextItemIdRef.current}`;
       if (tool === "line" || tool === "arrow") {
-        onCommitSceneItem(createGeometryItem(id, tool, geometryItem.geometry as LineGeometry, style, lifecycle));
+        const item = createGeometryItem(id, tool, geometryItem.geometry as LineGeometry, style, lifecycle);
+        retainGestureUntilCommitted(item);
+        submitSceneItem(item);
       } else if (tool === "rectangle" || tool === "ellipse") {
-        onCommitSceneItem(createShapeItem(id, tool, geometryItem.geometry as RectangleGeometry | EllipseGeometry, style, lifecycle));
+        const item = createShapeItem(id, tool, geometryItem.geometry as RectangleGeometry | EllipseGeometry, style, lifecycle);
+        retainGestureUntilCommitted(item);
+        submitSceneItem(item);
       }
       return;
     }
-    if (tool !== "pen" && tool !== "highlighter") return;
-    if (points.length < 2) return;
+    if (tool !== "pen" && tool !== "highlighter") {
+      cancelGesture();
+      return;
+    }
+    if (points.length < 2) {
+      cancelGesture();
+      return;
+    }
     nextItemIdRef.current += 1;
-    onCommitSceneItem(createStroke(`stroke-${nextItemIdRef.current}`, points, style, tool, gestureLifecycleRef.current));
+    const limitedPath = limitStrokePointCount(points);
+    const item = createStroke(`stroke-${nextItemIdRef.current}`, limitedPath.points, style, tool, gestureLifecycleRef.current);
+    retainGestureUntilCommitted(item);
+    const notice = limitedPath.simplified
+      ? `This long stroke was simplified from ${points.length} to ${MAX_STROKE_POINTS} points to meet the native limit; both endpoints are preserved.`
+      : undefined;
+    submitSceneItem(item, notice);
   };
 
   const toCanvasGestureEvent = (
@@ -983,7 +1113,19 @@ export function OverlaySurface({
 
   const handleTextBlur = () => {
     textShiftRef.current = false;
+    if (textDraftCommitHandledRef.current || pendingSceneCommitRef.current?.kind === "text") return;
     onCancelTextDraft();
+  };
+
+  const handleTextDraftChange = (value: string) => {
+    textDraftCommitHandledRef.current = false;
+    if (pendingSceneCommitRef.current?.kind === "text" && !sceneCommitInFlightRef.current) {
+      pendingSceneCommitRef.current = null;
+      setPendingSceneItem(null);
+    }
+    const limitError = textSceneItemLimitError(value);
+    setCommitFeedback(limitError ? { kind: "error", message: limitError } : null);
+    onUpdateTextDraft(value);
   };
 
   const commitTextDraft = useCallback((draft: TextDraft | null) => {
@@ -997,11 +1139,15 @@ export function OverlaySurface({
       return;
     }
     const item = createTextItem(`text-${nextItemIdRef.current + 1}`, draft);
+    const limitError = sceneItemLimitError(item);
+    if (limitError) {
+      setCommitFeedback({ kind: "error", message: limitError });
+      return;
+    }
     nextItemIdRef.current += 1;
     textShiftRef.current = false;
-    onCancelTextDraft();
-    onCommitSceneItem(item);
-  }, [onCancelTextDraft, onCommitSceneItem]);
+    submitSceneItem(item);
+  }, [onCancelTextDraft, submitSceneItem]);
 
   useEffect(() => {
     if (!textDraft) return;
@@ -1037,6 +1183,27 @@ export function OverlaySurface({
 
   return (
     <>
+      {commitFeedback ? (
+        <div
+          role={commitFeedback.kind === "error" ? "alert" : "status"}
+          aria-live={commitFeedback.kind === "error" ? "assertive" : "polite"}
+          data-annotation-commit-feedback={commitFeedback.kind}
+          style={{
+            position: "fixed", top: 12, right: 12, zIndex: 10_000, maxWidth: "min(480px, calc(100vw - 24px))",
+            padding: "10px 12px", borderRadius: 8,
+            color: "#fff", background: commitFeedback.kind === "error" ? "#991b1b" : "#854d0e",
+            font: "13px/1.4 system-ui, sans-serif", boxShadow: "0 2px 12px #0005", pointerEvents: "auto",
+          }}
+        >
+          <span>{commitFeedback.message}</span>
+          {pendingSceneItem && !commitSaving ? (
+            <span style={{ display: "inline-flex", gap: 8, marginLeft: 10 }}>
+              <button type="button" onClick={retryPendingSceneItem}>Retry save</button>
+              <button type="button" onClick={discardPendingSceneItem}>Discard unsaved annotation</button>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <canvas
         ref={canvasRef}
         aria-label="Annotation surface"
@@ -1066,7 +1233,8 @@ export function OverlaySurface({
           data-text-draft="true"
           data-scene-excluded="true"
           value={textDraft.value}
-          onChange={(event) => onUpdateTextDraft(event.target.value)}
+          readOnly={commitSaving && pendingSceneItem?.kind === "text"}
+          onChange={(event) => handleTextDraftChange(event.target.value)}
           onKeyDown={handleTextKeyDown}
           onKeyUp={handleTextKeyUp}
           onBlur={handleTextBlur}

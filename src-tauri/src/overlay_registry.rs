@@ -15,6 +15,9 @@ use tauri::{
 /// additional viewport receives a Rust-generated label derived from its
 /// validated opaque display identity.
 pub const OVERLAY_LABEL_PREFIX: &str = "overlay-display-";
+const MAX_STROKE_POINTS: usize = 4_096;
+const MAX_TEXT_UTF8_BYTES: usize = 4_096;
+const MAX_TEXT_LINES: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryError {
@@ -807,7 +810,7 @@ fn validate_typed_scene_item(item: &SceneItem) -> Result<(), RegistryError> {
             style,
             ..
         } => {
-            if points.is_empty() || points.len() > 4_096 {
+            if points.is_empty() || points.len() > MAX_STROKE_POINTS {
                 return Err(RegistryError::InvalidSceneItem(
                     "stroke points are empty or too long".into(),
                 ));
@@ -840,7 +843,10 @@ fn validate_typed_scene_item(item: &SceneItem) -> Result<(), RegistryError> {
                 ));
             }
             validate_point(anchor, "anchor")?;
-            if text.is_empty() || text.len() > 4_096 || text.split('\n').count() > 256 {
+            if text.is_empty()
+                || text.len() > MAX_TEXT_UTF8_BYTES
+                || text.split('\n').count() > MAX_TEXT_LINES
+            {
                 return Err(RegistryError::InvalidSceneItem(
                     "text is empty, too long, or has too many lines".into(),
                 ));
@@ -1685,6 +1691,12 @@ mod tests {
             .commit_scene_item(serde_json::json!({
                 "id":"too-many-lines","kind":"text","tool":"text",
                 "anchor":{"x":100.0,"y":100.0},"text":format!("{}x", "\n".repeat(256)),"style":style
+            }))
+            .is_err());
+        assert!(scene
+            .commit_scene_item(serde_json::json!({
+                "id":"too-many-text-bytes","kind":"text","tool":"text",
+                "anchor":{"x":100.0,"y":100.0},"text":"界".repeat(MAX_TEXT_UTF8_BYTES / 3 + 1),"style":style
             }))
             .is_err());
         assert_eq!(scene.snapshot(), before_invalid);
