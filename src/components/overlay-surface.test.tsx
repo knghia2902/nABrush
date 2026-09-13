@@ -289,6 +289,20 @@ describe("OverlaySurface scene helpers", () => {
     expect(left.y).toBeGreaterThan(right.y);
   });
 
+  it("keeps a thick arrowhead acute instead of widening its tip as the shaft thickens", () => {
+    const path = arrowheadPath({ x: 0, y: 0 }, { x: 60, y: 0 }, 20);
+    expect(path).not.toBeNull();
+    const [tip, left, right] = path!;
+    const leftVector = { x: left.x - tip.x, y: left.y - tip.y };
+    const rightVector = { x: right.x - tip.x, y: right.y - tip.y };
+    const dot = leftVector.x * rightVector.x + leftVector.y * rightVector.y;
+    const leftLength = Math.hypot(leftVector.x, leftVector.y);
+    const rightLength = Math.hypot(rightVector.x, rightVector.y);
+    const tipAngle = Math.acos(dot / (leftLength * rightLength)) * 180 / Math.PI;
+
+    expect(tipAngle).toBeLessThan(70);
+  });
+
   it("draws an arrow body and filled head without a second retained stroke", () => {
     const calls: string[] = [];
     const context = {
@@ -314,6 +328,50 @@ describe("OverlaySurface scene helpers", () => {
     expect(calls).toEqual(["clear", "begin", "move", "line", "stroke", "save", "begin", "move", "line", "line", "close", "fill", "restore"]);
     expect(context.fillStyle).toBe("#16a34a");
     expect(context.globalAlpha).toBe(1);
+  });
+
+  it("stops the rounded arrow shaft under the filled head rather than at the pointed tip", () => {
+    const strokedPaths: Array<Array<{ x: number; y: number }>> = [];
+    const lineCaps: CanvasLineCap[] = [];
+    let currentPath: Array<{ x: number; y: number }> = [];
+    let activeLineCap: CanvasLineCap = "round";
+    const context = {
+      clearRect: () => undefined,
+      beginPath: () => { currentPath = []; },
+      moveTo: (x: number, y: number) => { currentPath.push({ x, y }); },
+      lineTo: (x: number, y: number) => { currentPath.push({ x, y }); },
+      stroke: () => { strokedPaths.push([...currentPath]); lineCaps.push(activeLineCap); },
+      closePath: () => undefined,
+      fill: () => undefined,
+      save: () => undefined,
+      restore: () => undefined,
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 0,
+      get lineCap() { return activeLineCap; },
+      set lineCap(value: CanvasLineCap) { activeLineCap = value; },
+      globalAlpha: 1,
+      globalCompositeOperation: "source-over",
+    };
+    const start = { x: 0, y: 0 };
+    const end = { x: 60, y: 0 };
+    const item = createGeometryItem("thick-arrow", "arrow", { type: "line", start, end }, {
+      color: "#16a34a", opacity: 1, width: 20, fill: "none", fillColor: "#16a34a", fillOpacity: 1, textSize: 24,
+    });
+    const logicalViewport = {
+      id: "test", origin: { x: 0, y: 0 }, logicalSize: { width: 100, height: 100 },
+      scaleFactor: 1, orientation: "degrees0" as const,
+    };
+
+    drawScene(context, [item], 100, 100, logicalViewport);
+
+    expect(strokedPaths).toHaveLength(1);
+    const head = arrowheadPath(start, end, item.style.width)!;
+    expect(strokedPaths[0]?.at(-1)).toEqual({
+      x: (head[1].x + head[2].x) / 2,
+      y: (head[1].y + head[2].y) / 2,
+    });
+    expect(lineCaps).toEqual(["butt"]);
   });
 
   it("normalizes reverse drags into canonical rectangle bounds and ellipse radii", () => {

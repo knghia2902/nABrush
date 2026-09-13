@@ -324,8 +324,8 @@ export function arrowheadPath(start: CanonicalPoint, end: CanonicalPoint, stroke
   if (!Number.isFinite(distance) || distance === 0) return null;
   const unitX = dx / distance;
   const unitY = dy / distance;
-  const length = Math.min(distance * 0.45, Math.max(8, strokeWidth * 4));
-  const halfWidth = Math.max(4, strokeWidth * 2.25);
+  const length = Math.min(distance * 0.6, Math.max(8, strokeWidth * 4));
+  const halfWidth = Math.min(Math.max(4, strokeWidth * 2.25), length * 0.55);
   const baseX = end.x - unitX * length;
   const baseY = end.y - unitY * length;
   const perpendicularX = -unitY;
@@ -343,13 +343,14 @@ export function drawLineGeometry(
   width: number,
   height: number,
   viewport?: DisplayViewport,
+  lineCap: CanvasLineCap = "round",
 ) {
   if (item.geometry.type !== "line") return;
   const start = viewportPoint(item.geometry.start, width, height, viewport);
   const end = viewportPoint(item.geometry.end, width, height, viewport);
   context.strokeStyle = item.style.color;
   context.lineWidth = item.style.width;
-  context.lineCap = "round";
+  context.lineCap = lineCap;
   context.lineJoin = "round";
   context.globalAlpha = item.style.opacity;
   context.globalCompositeOperation = "source-over";
@@ -368,17 +369,24 @@ export function drawArrowGeometry(
   viewport?: DisplayViewport,
 ) {
   if (item.geometry.type !== "line") return;
-  drawLineGeometry(context, item, width, height, viewport);
   const path = arrowheadPath(item.geometry.start, item.geometry.end, item.style.width);
-  if (!path) return;
-  const [tip, left, right] = path.map((point) => viewportPoint(point, width, height, viewport));
+  if (!path) {
+    drawLineGeometry(context, item, width, height, viewport);
+    return;
+  }
+  const [tip, left, right] = path;
+  const shaftEnd = { x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 };
+  const shaft = { ...item, geometry: { ...item.geometry, end: shaftEnd } };
+  drawLineGeometry(context, shaft, width, height, viewport, "butt");
+  const [viewportTip, viewportLeft, viewportRight] = [tip, left, right]
+    .map((point) => viewportPoint(point, width, height, viewport));
   context.save?.();
   context.fillStyle = item.style.color;
   context.globalAlpha = item.style.opacity;
   context.beginPath();
-  context.moveTo(tip.x, tip.y);
-  context.lineTo(left.x, left.y);
-  context.lineTo(right.x, right.y);
+  context.moveTo(viewportTip.x, viewportTip.y);
+  context.lineTo(viewportLeft.x, viewportLeft.y);
+  context.lineTo(viewportRight.x, viewportRight.y);
   context.closePath?.();
   context.fill?.();
   context.globalAlpha = 1;
