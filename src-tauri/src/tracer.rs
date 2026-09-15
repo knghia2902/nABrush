@@ -1,8 +1,5 @@
 use crate::controller::{LifecycleSnapshot, OverlayMode};
-use crate::display::{
-    DisplayDescriptor, DisplayId, DisplayOrientation, DisplayPoint, DisplaySize, DisplaySnapshot,
-    DisplayViewport,
-};
+use crate::display::{DisplayDescriptor, DisplayId, DisplaySnapshot, DisplayViewport};
 
 #[derive(Debug)]
 pub struct LifecycleTracer {
@@ -53,6 +50,7 @@ impl LifecycleTracer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::display::{DisplayOrientation, DisplayPoint, DisplaySize};
     fn descriptor(
         id: &str,
         x: f64,
