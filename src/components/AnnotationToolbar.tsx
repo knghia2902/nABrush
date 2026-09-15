@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   MAX_VANISHING_DURATION_SECONDS,
   MIN_VANISHING_DURATION_SECONDS,
@@ -19,16 +23,60 @@ const TOOL_LABELS: Record<AnnotationTool, string> = {
   eraser: "Eraser",
 };
 
-const TOOL_GLYPHS: Record<AnnotationTool, string> = {
-  pen: "✎",
-  highlighter: "▰",
-  line: "╱",
-  arrow: "➜",
-  rectangle: "▱",
-  ellipse: "◯",
-  text: "T",
-  eraser: "⌫",
-};
+type ToolbarIconName = AnnotationTool | "move" | "undo" | "redo" | "clear" | "properties" | "lifecycle";
+
+function ToolbarIcon({ name }: { name: ToolbarIconName }) {
+  const icon = (() => {
+    switch (name) {
+      case "move":
+        return <g fill="currentColor" stroke="none"><circle cx="8" cy="5" r="1.25" /><circle cx="16" cy="5" r="1.25" /><circle cx="8" cy="12" r="1.25" /><circle cx="16" cy="12" r="1.25" /><circle cx="8" cy="19" r="1.25" /><circle cx="16" cy="19" r="1.25" /></g>;
+      case "pen":
+        return <><path d="m4.5 19.5 4.2-.9L19 8.3a2.1 2.1 0 0 0-3-3L5.7 15.6l-1.2 3.9Z" /><path d="m13.8 7.5 3 3" /></>;
+      case "highlighter":
+        return <><path d="m5 14.5 8.8-8.8 5.5 5.5-8.8 8.8H5v-5.5Z" /><path d="m11.8 7.7 5.5 5.5M4 21h16" /></>;
+      case "line":
+        return <path d="M5 19 19 5" />;
+      case "arrow":
+        return <path d="M4.5 12h15m-6-6 6 6-6 6" />;
+      case "rectangle":
+        return <rect x="5" y="6" width="14" height="12" rx="1.75" />;
+      case "ellipse":
+        return <ellipse cx="12" cy="12" rx="7.5" ry="5.75" />;
+      case "text":
+        return <path d="M5.5 6h13M12 6v13m-3.5 0h7" />;
+      case "eraser":
+        return <><path d="m8.1 19.5-3.3-3.3a2 2 0 0 1 0-2.8l6.8-6.8a2 2 0 0 1 2.8 0l4.7 4.7a2 2 0 0 1 0 2.8l-5.4 5.4H8.1Z" /><path d="m7.4 11.2 6.1 6.1M13.8 19.5H21" /></>;
+      case "undo":
+        return <><path d="m9 7-4 4 4 4" /><path d="M5 11h8a5 5 0 0 1 0 10h-1" /></>;
+      case "redo":
+        return <><path d="m15 7 4 4-4 4" /><path d="M19 11h-8a5 5 0 0 0 0 10h1" /></>;
+      case "clear":
+        return <><path d="M4.5 7h15m-10-2.5h5V7m-8 0 .9 13h10.2l.9-13" /><path d="M10 10.5v6m4-6v6" /></>;
+      case "properties":
+        return <><circle cx="12" cy="12" r="3" /><path d="M12 3.75v2m0 12.5v2m8.25-8.25h-2m-12.5 0h-2m14.09-5.84-1.42 1.42m-8.84 8.84-1.42 1.42m11.68 0-1.42-1.42m-8.84-8.84L6.16 6.16" /></>;
+      case "lifecycle":
+        return <><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.25 2" /></>;
+    }
+  })();
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="annotation-toolbar__icon"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {icon}
+    </svg>
+  );
+}
 
 export const TOOLBAR_MARGIN = 16;
 export const TOOLBAR_KEYBOARD_STEP = 8;
@@ -137,10 +185,14 @@ export function AnnotationToolbar({
   const lifecycleButtonRef = useRef<HTMLButtonElement>(null);
   const lifecyclePanelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const pointerSequenceRef = useRef(false);
+  const mouseFallbackActiveRef = useRef(false);
+  const suppressMouseUpRef = useRef(false);
+  const syntheticPointerDispatchRef = useRef(false);
   const positionRef = useRef<ToolbarPosition>({ left: TOOLBAR_MARGIN, top: TOOLBAR_MARGIN });
   const [position, setPosition] = useState<ToolbarPosition>(positionRef.current);
-  const [propertiesPosition, setPropertiesPosition] = useState<ToolbarPosition>({ left: TOOLBAR_MARGIN + 76, top: TOOLBAR_MARGIN });
-  const [lifecyclePosition, setLifecyclePosition] = useState<ToolbarPosition>({ left: TOOLBAR_MARGIN + 76, top: TOOLBAR_MARGIN });
+  const [propertiesPosition, setPropertiesPosition] = useState<ToolbarPosition>({ left: TOOLBAR_MARGIN + 64, top: TOOLBAR_MARGIN });
+  const [lifecyclePosition, setLifecyclePosition] = useState<ToolbarPosition>({ left: TOOLBAR_MARGIN + 64, top: TOOLBAR_MARGIN });
   const [dragging, setDragging] = useState(false);
 
   const toolbarSize = useCallback(() => {
@@ -201,6 +253,9 @@ export function AnnotationToolbar({
     if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return;
     dragRef.current = null;
     setDragging(false);
+    pointerSequenceRef.current = false;
+    mouseFallbackActiveRef.current = false;
+    suppressMouseUpRef.current = true;
     const handle = handleRef.current;
     if (handle?.hasPointerCapture(drag.pointerId)) handle.releasePointerCapture(drag.pointerId);
   }, []);
@@ -227,13 +282,15 @@ export function AnnotationToolbar({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0 || dragRef.current) return;
+    pointerSequenceRef.current = true;
+    suppressMouseUpRef.current = false;
     const rect = toolbarRef.current?.getBoundingClientRect();
     if (!rect) return;
     event.preventDefault();
     event.stopPropagation();
     dragRef.current = { pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
     setDragging(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (!syntheticPointerDispatchRef.current) event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -245,10 +302,63 @@ export function AnnotationToolbar({
   };
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) {
+      pointerSequenceRef.current = false;
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     finishDrag(event.pointerId);
+  };
+
+  const dispatchMouseAsPointer = (event: ReactMouseEvent<HTMLButtonElement>, type: "pointerdown" | "pointermove" | "pointerup") => {
+    if (typeof PointerEvent === "undefined") return;
+    syntheticPointerDispatchRef.current = true;
+    try {
+      event.currentTarget.dispatchEvent(new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: event.button,
+        buttons: type === "pointerup" ? 0 : 1,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        isPrimary: true,
+        pointerId: 1,
+        pointerType: "mouse",
+      }));
+    } finally {
+      syntheticPointerDispatchRef.current = false;
+    }
+  };
+
+  const handleMouseDown = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    // The embedded tauri-plugin-wdio-webdriver translates W3C pointer actions
+    // to MouseEvents. Adapt that legacy boundary back to PointerEvents so the
+    // toolbar drag state uses the same path as real pointer input.
+    if (event.button !== 0 || pointerSequenceRef.current || typeof PointerEvent === "undefined") return;
+    event.preventDefault();
+    event.stopPropagation();
+    mouseFallbackActiveRef.current = true;
+    suppressMouseUpRef.current = false;
+    dispatchMouseAsPointer(event, "pointerdown");
+  };
+
+  const handleMouseMove = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!mouseFallbackActiveRef.current || typeof PointerEvent === "undefined") return;
+    dispatchMouseAsPointer(event, "pointermove");
+  };
+
+  const handleMouseUp = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (suppressMouseUpRef.current) {
+      suppressMouseUpRef.current = false;
+      mouseFallbackActiveRef.current = false;
+      return;
+    }
+    if (!mouseFallbackActiveRef.current || typeof PointerEvent === "undefined") return;
+    event.preventDefault();
+    event.stopPropagation();
+    dispatchMouseAsPointer(event, "pointerup");
+    mouseFallbackActiveRef.current = false;
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -292,7 +402,6 @@ export function AnnotationToolbar({
             type="button"
             className="annotation-toolbar__drag-handle"
             aria-label="Move annotation toolbar"
-            title="Move annotation toolbar"
             aria-keyshortcuts="Arrow keys, Shift+Arrow keys"
             data-toolbar-drag-handle="true"
             data-toolbar-keyboard-step={TOOLBAR_KEYBOARD_STEP}
@@ -303,10 +412,12 @@ export function AnnotationToolbar({
             onPointerUp={handlePointerEnd}
             onPointerCancel={handlePointerEnd}
             onLostPointerCapture={handlePointerEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
             onKeyDown={handleKeyDown}
           >
-            <span aria-hidden="true" className="annotation-toolbar__grip">⋮⋮</span>
-            <span className="annotation-toolbar__handle-label">Move</span>
+            <span aria-hidden="true" className="annotation-toolbar__grip"><ToolbarIcon name="move" /></span>
           </button>
         </div>
         <div className="annotation-toolbar__tools" data-scene-excluded="true">
@@ -314,37 +425,34 @@ export function AnnotationToolbar({
             <button
               type="button"
               aria-label="Undo"
-              title="Undo (⌘/Ctrl+Z)"
               aria-keyshortcuts="Meta+Z Control+Z"
               data-history-undo="true"
               data-scene-excluded="true"
               disabled={!canUndo}
               onClick={onUndo}
             >
-              <span aria-hidden="true">↶</span><span className="annotation-toolbar__tool-label">Undo</span>
+              <span aria-hidden="true" className="annotation-toolbar__history-icon"><ToolbarIcon name="undo" /></span>
             </button>
             <button
               type="button"
               aria-label="Redo"
-              title="Redo (⌘/Ctrl+Y)"
               aria-keyshortcuts="Meta+Y Control+Y"
               data-history-redo="true"
               data-scene-excluded="true"
               disabled={!canRedo}
               onClick={onRedo}
             >
-              <span aria-hidden="true">↷</span><span className="annotation-toolbar__tool-label">Redo</span>
+              <span aria-hidden="true" className="annotation-toolbar__history-icon"><ToolbarIcon name="redo" /></span>
             </button>
             <button
               type="button"
               aria-label="Clear all annotations"
-              title="Clear all annotations"
               data-history-clear="true"
               data-scene-excluded="true"
               disabled={!canClear}
               onClick={onClearAll}
             >
-              <span aria-hidden="true">⌫</span><span className="annotation-toolbar__tool-label">Clear all</span>
+              <span aria-hidden="true" className="annotation-toolbar__history-icon"><ToolbarIcon name="clear" /></span>
             </button>
           </div>
           {TOOL_ORDER.map((tool) => (
@@ -353,14 +461,12 @@ export function AnnotationToolbar({
               type="button"
               className="annotation-toolbar__tool"
               aria-label={TOOL_LABELS[tool]}
-              title={TOOL_LABELS[tool]}
               aria-pressed={activeTool === tool}
               data-tool={tool}
               data-scene-excluded="true"
               onClick={() => onSelectTool(tool)}
             >
-              <span aria-hidden="true" className="annotation-toolbar__tool-glyph">{TOOL_GLYPHS[tool]}</span>
-              <span className="annotation-toolbar__tool-label">{TOOL_LABELS[tool]}</span>
+              <span aria-hidden="true" className="annotation-toolbar__tool-glyph"><ToolbarIcon name={tool} /></span>
             </button>
           ))}
           <button
@@ -368,14 +474,12 @@ export function AnnotationToolbar({
             type="button"
             className="annotation-toolbar__properties"
             aria-label="Tool properties"
-            title="Tool properties"
             aria-expanded={propertyOpen}
             aria-controls="annotation-property-popover"
             data-scene-excluded="true"
             onClick={onToggleProperties}
           >
-            <span aria-hidden="true">⚙</span>
-            <span className="annotation-toolbar__tool-label">Properties</span>
+            <span aria-hidden="true" className="annotation-toolbar__control-icon"><ToolbarIcon name="properties" /></span>
           </button>
           <div className="annotation-toolbar__lifecycle" data-scene-excluded="true">
             <button
@@ -383,15 +487,13 @@ export function AnnotationToolbar({
               type="button"
               className="annotation-toolbar__lifecycle-toggle"
               aria-label={`Ink lifecycle: ${lifecycleMode === "persistent" ? "Persistent" : "Vanishing"}`}
-              title={`Ink lifecycle: ${lifecycleMode === "persistent" ? "Persistent" : "Vanishing"}`}
               aria-pressed={lifecycleMode === "vanishing"}
               data-lifecycle-toggle="true"
               data-lifecycle-mode={lifecycleMode}
               data-scene-excluded="true"
               onClick={onToggleLifecycleMode}
             >
-              <span aria-hidden="true">◷</span>
-              <span className="annotation-toolbar__tool-label">{lifecycleMode === "persistent" ? "Persistent" : "Vanishing"}</span>
+              <span aria-hidden="true" className="annotation-toolbar__control-icon"><ToolbarIcon name="lifecycle" /></span>
             </button>
           </div>
         </div>

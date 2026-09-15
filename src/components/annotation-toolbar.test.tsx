@@ -66,6 +66,31 @@ describe("AnnotationToolbar", () => {
     expect(markup).toContain('type="button"');
   });
 
+  it("shows toolbar icons without visible labels or hover descriptions while keeping accessible names", () => {
+    const markup = renderToolbar("pen");
+    const toolbar = markup.match(/<nav[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? "";
+
+    expect(toolbar).not.toContain("annotation-toolbar__tool-label");
+    expect(toolbar).not.toContain("annotation-toolbar__handle-label");
+    expect(toolbar).not.toContain("title=");
+    expect(toolbar).not.toMatch(/>(?:Move|Undo|Redo|Clear all|Pen|Highlighter|Line|Arrow|Rectangle|Ellipse|Text|Eraser|Properties|Persistent|Vanishing)</);
+    expect(toolbar).toContain('aria-label="Undo"');
+    expect(toolbar).toContain('aria-label="Pen"');
+    expect(toolbar).toContain('aria-label="Tool properties"');
+  });
+
+  it("uses a consistent decorative SVG icon for every toolbar control", () => {
+    const markup = renderToolbar("pen");
+    const toolbar = markup.match(/<nav[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? "";
+
+    expect(toolbar.match(/<svg\b/g)).toHaveLength(14);
+    expect(toolbar.match(/aria-hidden="true"[^>]*class="annotation-toolbar__icon"/g)).toHaveLength(14);
+    expect(toolbar).toContain('viewBox="0 0 24 24"');
+    expect(toolbar).toContain('stroke-width="1.8"');
+    expect(toolbar).toContain('aria-label="Clear all annotations"');
+    expect(toolbar).toContain('aria-label="Ink lifecycle: Persistent"');
+  });
+
   it("clamps finite pointer positions, including oversized and invalid candidates", () => {
     expect(clampToolbarPosition(1200, 800, 96, 320, 16, -40, 900)).toEqual({ left: 16, top: 464 });
     expect(clampToolbarPosition(1200, 800, 96, 320, 16, 500, 200)).toEqual({ left: 500, top: 200 });
